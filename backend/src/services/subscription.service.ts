@@ -144,6 +144,19 @@ export class SubscriptionService {
         throw new BusinessRuleError("Cannot create a subscription for an inactive plan");
       }
 
+      // Enforce minimum purchase quantity
+      if (plan.minQuantity && plan.minQuantity > 1) {
+        const totalQty = (data.items && data.items.length > 0)
+          ? data.items.reduce((sum, it) => sum + parseFloat(String(it.quantity || "1")), 0)
+          : plan.items.reduce((sum, it) => sum + parseFloat(String(it.quantity || "1")), 0);
+
+        if (totalQty < plan.minQuantity) {
+          throw new BusinessRuleError(
+            `Total quantity (${totalQty}) is below the required minimum quantity (${plan.minQuantity}) for plan '${plan.name}'`
+          );
+        }
+      }
+
       if (plan.items.length > 0) {
         for (const item of plan.items) {
           const { finalPriceMinor } = await getProductWithVariant(
@@ -661,6 +674,11 @@ export class SubscriptionService {
 
     if (sub.status === SubscriptionStatus.CANCELLED || sub.status === SubscriptionStatus.EXPIRED) {
       throw new BusinessRuleError("Subscription is already closed");
+    }
+
+    // Verify plan policy allows early closure
+    if (!PlanPolicyHelper.canCloseEarly(sub.plan)) {
+      throw new BusinessRuleError("The configured plan policy disallows early closure");
     }
 
     const updated = await prisma.subscription.update({

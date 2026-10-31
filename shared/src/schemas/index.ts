@@ -222,7 +222,18 @@ export const createPlanSchema = z.object({
   allowRenewal: z.boolean().default(true),
   prices: z.array(planPriceInputSchema).min(1, "Plan must have at least one price configuration"),
   items: z.array(planItemInputSchema).optional().default([]),
-});
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.endDate) > new Date(data.startDate);
+    }
+    return true;
+  },
+  {
+    message: "Plan end date must be after start date",
+    path: ["endDate"],
+  }
+);
 
 export const updatePlanSchema = z.object({
   name: z.string().min(2).optional(),
@@ -248,6 +259,7 @@ export const paginationQuerySchema = z.object({
   endDate: z.string().optional(),
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  includeArchived: z.coerce.boolean().optional(),
 });
 
 // ============================================================================

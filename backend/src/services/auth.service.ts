@@ -291,12 +291,16 @@ export class AuthService {
     const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${rawToken}`;
 
     // Dispatch via email service adapter
-    await emailService.sendPasswordResetEmail({
-      to: user.email,
-      userName: user.fullName,
-      resetUrl,
-      expiresAtMinutes: 60,
-    });
+    try {
+      await emailService.sendPasswordResetEmail({
+        to: user.email,
+        userName: user.fullName,
+        resetUrl,
+        expiresAtMinutes: 60,
+      });
+    } catch (emailErr) {
+      console.warn("[AuthService] Password reset email transmission failed:", emailErr);
+    }
 
     return {
       message: "If an account with that email exists, a password reset link has been generated.",

@@ -69,6 +69,9 @@ export class QuotationService {
     // 2. Resolve template configuration if templateId is provided
     if (data.templateId) {
       const template = await QuotationTemplateService.getTemplateById(data.templateId);
+      if (!template.isActive) {
+        throw new BusinessRuleError("Cannot generate quotation from an inactive template");
+      }
       templateConfig = template.config;
       templateValidityDays = templateConfig?.validityDays ?? 15;
       templatePaymentTerms = templateConfig?.paymentTerms ?? "NET_15";
