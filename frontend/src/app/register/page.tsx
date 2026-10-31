@@ -4,7 +4,9 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Sparkles, ArrowRight, CheckCircle2, Lock } from "lucide-react";
+import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
+import { checkPasswordRequirements } from "@sms/shared";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -12,16 +14,31 @@ export default function RegisterPage() {
     fullName: "",
     email: "",
     password: "",
+    confirmPassword: "",
     companyName: "",
     phone: "",
   });
   const [loading, setLoading] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setHasSubmitted(true);
+
+    const reqs = checkPasswordRequirements(formData.password);
+    if (!reqs.isValid) {
+      setError("Please ensure your password satisfies all 4 complexity requirements.");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match. Please re-enter your confirmation password.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -140,9 +157,37 @@ export default function RegisterPage() {
                     placeholder="Min 9 chars (e.g. StrongPass!2026)"
                     className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition"
                   />
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Must be ≥ 9 characters with uppercase, lowercase, and a special character.
-                  </p>
+                  <PasswordRequirementsChecklist
+                    password={formData.password}
+                    hasSubmitted={hasSubmitted}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    placeholder="Re-enter your password"
+                    className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition"
+                  />
+                  {formData.confirmPassword && (
+                    <p
+                      className={`mt-1.5 text-xs font-medium flex items-center ${
+                        formData.password === formData.confirmPassword
+                          ? "text-emerald-600"
+                          : "text-rose-600"
+                      }`}
+                    >
+                      {formData.password === formData.confirmPassword
+                        ? "✓ Passwords match"
+                        : "✗ Passwords do not match"}
+                    </p>
+                  )}
                 </div>
 
                 <button

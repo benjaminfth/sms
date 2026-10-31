@@ -9,6 +9,7 @@ import { api } from "@/lib/api-client";
 import { UserDTO, Role, PaginationMeta } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
 import { Plus, Shield, Search, UserCheck, X } from "lucide-react";
+import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
 
 export default function AdminStaffPage() {
   const [users, setUsers] = useState<UserDTO[]>([]);
@@ -246,6 +247,10 @@ export default function AdminStaffPage() {
                   onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
                   placeholder="Min 9 chars (e.g. Brightloop!2026)"
                   className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                />
+                <PasswordRequirementsChecklist
+                  password={createForm.password}
+                  hasSubmitted={Boolean(createError)}
                 />
               </div>
 

@@ -10,22 +10,51 @@ import {
 } from "../enums";
 import { PASSWORD_MIN_LENGTH, DEFAULT_CURRENCY } from "../constants";
 
-// Password policy: >=9 chars, uppercase, lowercase, special characters
+// Password policy: >=9 chars, uppercase, lowercase, special characters (excluding spaces)
 export const passwordSchema = z
   .string()
   .min(PASSWORD_MIN_LENGTH, `Password must contain at least ${PASSWORD_MIN_LENGTH} characters`)
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-  .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character");
+  .regex(/[^A-Za-z0-9\s]/, "Password must contain at least one special character");
+
+export interface PasswordRequirements {
+  hasMinLength: boolean;
+  hasUppercase: boolean;
+  hasLowercase: boolean;
+  hasSpecialChar: boolean;
+  isValid: boolean;
+}
+
+export function checkPasswordRequirements(password: string): PasswordRequirements {
+  const hasMinLength = password.length >= PASSWORD_MIN_LENGTH;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasSpecialChar = /[^A-Za-z0-9\s]/.test(password);
+
+  return {
+    hasMinLength,
+    hasUppercase,
+    hasLowercase,
+    hasSpecialChar,
+    isValid: hasMinLength && hasUppercase && hasLowercase && hasSpecialChar,
+  };
+}
 
 // Auth schemas
-export const registerSchema = z.object({
-  email: z.string().email().transform((v) => v.toLowerCase().trim()),
-  password: passwordSchema,
-  fullName: z.string().min(2, "Full name must be at least 2 characters").trim(),
-  phone: z.string().optional().nullable(),
-  companyName: z.string().optional().nullable(),
-});
+export const registerSchema = z
+  .object({
+    email: z.string().email().transform((v) => v.toLowerCase().trim()),
+    password: passwordSchema,
+    confirmPassword: z.string().optional(),
+    fullName: z.string().min(2, "Full name must be at least 2 characters").trim(),
+    phone: z.string().optional().nullable(),
+    companyName: z.string().optional().nullable(),
+  })
+  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 export const loginSchema = z.object({
   email: z.string().email().transform((v) => v.toLowerCase().trim()),
@@ -36,19 +65,31 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email().transform((v) => v.toLowerCase().trim()),
 });
 
-export const resetPasswordSchema = z.object({
-  token: z.string().min(1, "Reset token is required"),
-  newPassword: passwordSchema,
-});
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(1, "Reset token is required"),
+    newPassword: passwordSchema,
+    confirmPassword: z.string().optional(),
+  })
+  .refine((data) => !data.confirmPassword || data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 // Staff schemas
-export const createStaffSchema = z.object({
-  email: z.string().email().transform((v) => v.toLowerCase().trim()),
-  password: passwordSchema,
-  fullName: z.string().min(2, "Full name must be at least 2 characters").trim(),
-  phone: z.string().optional().nullable(),
-  role: z.enum([Role.STAFF, Role.ADMIN]).default(Role.STAFF),
-});
+export const createStaffSchema = z
+  .object({
+    email: z.string().email().transform((v) => v.toLowerCase().trim()),
+    password: passwordSchema,
+    confirmPassword: z.string().optional(),
+    fullName: z.string().min(2, "Full name must be at least 2 characters").trim(),
+    phone: z.string().optional().nullable(),
+    role: z.enum([Role.STAFF, Role.ADMIN]).default(Role.STAFF),
+  })
+  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 export const updateUserRoleSchema = z.object({
   role: z.enum([Role.ADMIN, Role.STAFF, Role.CUSTOMER]),
