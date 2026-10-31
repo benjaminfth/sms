@@ -190,9 +190,16 @@ export const paginationQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().max(100).default(20),
   search: z.string().optional(),
   status: z.string().optional(),
+  customerId: z.string().uuid().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
+
+// ============================================================================
+// DEVELOPER 3 SCHEMAS: TAXES, DISCOUNTS, PAYMENTS, ALLOCATIONS, PRICING
+// ============================================================================
 
 // Tax schemas
 export const createTaxSchema = z.object({
@@ -339,3 +346,116 @@ export const dashboardQuerySchema = z.object({
   endDate: z.string().datetime().optional(),
 });
 
+// ============================================================================
+// DEVELOPER 2 SCHEMAS: QUOTATIONS, SUBSCRIPTIONS, INVOICES, BILLING
+// ============================================================================
+
+// Quotation Items & Quotations
+export const createQuotationItemSchema = z.object({
+  productId: z.string().uuid("Product ID must be a valid UUID"),
+  productVariantId: z.string().uuid().optional().nullable(),
+  description: z.string().optional().nullable(),
+  quantity: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val))
+    .default("1.000"),
+  unitPriceMinor: minorAmountSchema.optional(),
+});
+
+export const createQuotationSchema = z.object({
+  customerId: z.string().uuid("Customer ID must be a valid UUID"),
+  templateId: z.string().uuid().optional().nullable(),
+  currency: z.string().default(DEFAULT_CURRENCY),
+  validUntil: z.string().datetime({ offset: true }),
+  notes: z.string().optional().nullable(),
+  discountCode: z.string().optional().nullable(),
+  items: z.array(createQuotationItemSchema).min(1, "Quotation must have at least one item"),
+});
+
+export const updateQuotationSchema = z.object({
+  templateId: z.string().uuid().optional().nullable(),
+  validUntil: z.string().datetime({ offset: true }).optional(),
+  notes: z.string().optional().nullable(),
+  discountCode: z.string().optional().nullable(),
+  items: z.array(createQuotationItemSchema).optional(),
+});
+
+// Quotation Template schemas
+export const createQuotationTemplateSchema = z.object({
+  name: z.string().min(2, "Template name must be at least 2 characters").trim(),
+  description: z.string().optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+
+export const updateQuotationTemplateSchema = z.object({
+  name: z.string().min(2).optional(),
+  description: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+// Subscription Items & Subscriptions
+export const createSubscriptionItemSchema = z.object({
+  productId: z.string().uuid("Product ID must be a valid UUID"),
+  productVariantId: z.string().uuid().optional().nullable(),
+  quantity: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val))
+    .default("1.000"),
+  unitPriceMinor: minorAmountSchema.optional(),
+});
+
+export const createSubscriptionSchema = z.object({
+  quotationId: z.string().uuid().optional().nullable(),
+  customerId: z.string().uuid().optional(),
+  planId: z.string().uuid().optional().nullable(),
+  billingInterval: z.nativeEnum(BillingInterval).default(BillingInterval.MONTHLY),
+  intervalCount: z.number().int().positive().default(1),
+  startDate: z.string().datetime({ offset: true }).optional(),
+  currency: z.string().default(DEFAULT_CURRENCY),
+  items: z.array(createSubscriptionItemSchema).optional(),
+});
+
+export const updateSubscriptionSchema = z.object({
+  billingInterval: z.nativeEnum(BillingInterval).optional(),
+  intervalCount: z.number().int().positive().optional(),
+});
+
+export const cancelSubscriptionSchema = z.object({
+  cancellationReason: z.string().optional().nullable(),
+  effectiveImmediately: z.boolean().default(true),
+});
+
+export const pauseSubscriptionSchema = z.object({
+  reason: z.string().optional().nullable(),
+});
+
+// Billing schemas
+export const triggerBillingRunSchema = z.object({
+  targetDate: z.string().datetime({ offset: true }).optional(),
+});
+
+// Invoice schemas
+export const createInvoiceItemSchema = z.object({
+  productId: z.string().uuid().optional().nullable(),
+  description: z.string().min(1, "Description is required"),
+  quantity: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val))
+    .default("1.000"),
+  unitPriceMinor: minorAmountSchema,
+  taxAmountMinor: minorAmountSchema.default("0"),
+});
+
+export const createInvoiceSchema = z.object({
+  customerId: z.string().uuid("Customer ID must be a valid UUID"),
+  subscriptionId: z.string().uuid().optional().nullable(),
+  currency: z.string().default(DEFAULT_CURRENCY),
+  dueDate: z.string().datetime({ offset: true }),
+  billingPeriodStart: z.string().datetime({ offset: true }).optional().nullable(),
+  billingPeriodEnd: z.string().datetime({ offset: true }).optional().nullable(),
+  items: z.array(createInvoiceItemSchema).min(1, "Invoice must have at least one line item"),
+});
+
+export const voidInvoiceSchema = z.object({
+  reason: z.string().optional().nullable(),
+});

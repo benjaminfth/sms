@@ -20,6 +20,7 @@ import {
   Sparkles,
   Landmark,
   Scale,
+  Zap,
 } from "lucide-react";
 
 export function AppSidebar() {
@@ -27,8 +28,6 @@ export function AppSidebar() {
   const { user } = useAuth();
 
   const isAdmin = user?.role === Role.ADMIN;
-  const isStaff = user?.role === Role.STAFF;
-
   const basePath = isAdmin ? "/admin" : "/staff";
 
   interface NavItem {
@@ -46,6 +45,7 @@ export function AppSidebar() {
     { name: "Plans", href: `${basePath}/plans`, icon: Layers },
     { name: "Quotations", href: "/admin/quotations", icon: FileText, dev2: true },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: Repeat, dev2: true },
+    { name: "Billing Engine", href: "/admin/billing", icon: Zap, dev2: true, adminOnly: true },
     { name: "Invoices", href: "/admin/invoices", icon: Receipt, dev2: true },
     { name: "Payments", href: "/admin/payments", icon: CreditCard },
     { name: "Reconciliation", href: "/admin/reconciliation", icon: Scale, adminOnly: true },
