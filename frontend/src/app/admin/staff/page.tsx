@@ -5,11 +5,19 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, Column } from "@/components/tables/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { UserDTO, Role, PaginationMeta } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
-import { Plus, Shield, Search, UserCheck, X } from "lucide-react";
+import {
+  Plus,
+  Search,
+  X,
+  Trash2,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
 import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
 
 export default function AdminStaffPage() {
@@ -20,6 +28,12 @@ export default function AdminStaffPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // User Action Feedback Alert
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   // Create Staff Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -38,6 +52,14 @@ export default function AdminStaffPage() {
   const [roleLoading, setRoleLoading] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
 
+  // Status Toggle Dialog (Deactivate / Activate)
+  const [toggleTarget, setToggleTarget] = useState<UserDTO | null>(null);
+  const [toggleLoading, setToggleLoading] = useState(false);
+
+  // Delete User Dialog
+  const [deleteTarget, setDeleteTarget] = useState<UserDTO | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -50,8 +72,12 @@ export default function AdminStaffPage() {
         setUsers(res.data);
         setPagination(res.meta);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load staff users:", err);
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to load users.",
+      });
     } finally {
       setLoading(false);
     }
@@ -71,6 +97,10 @@ export default function AdminStaffPage() {
       if (res.success) {
         setIsCreateOpen(false);
         setCreateForm({ fullName: "", email: "", password: "", role: Role.STAFF });
+        setFeedback({
+          type: "success",
+          message: `User account for "${createForm.fullName}" created successfully.`,
+        });
         fetchUsers();
       }
     } catch (err: any) {
@@ -92,12 +122,69 @@ export default function AdminStaffPage() {
       });
       if (res.success) {
         setEditRoleUser(null);
+        setFeedback({
+          type: "success",
+          message: `Role for "${editRoleUser.fullName}" updated to ${selectedRole}.`,
+        });
         fetchUsers();
       }
     } catch (err: any) {
       setRoleError(err.message || "Failed to change user role.");
     } finally {
       setRoleLoading(false);
+    }
+  };
+
+  const handleToggleStatusConfirm = async () => {
+    if (!toggleTarget) return;
+    setToggleLoading(true);
+
+    try {
+      const newStatus = !toggleTarget.isActive;
+      const res = await api.patch(`/users/${toggleTarget.id}`, {
+        isActive: newStatus,
+      });
+      if (res.success) {
+        setFeedback({
+          type: "success",
+          message: `User "${toggleTarget.fullName}" has been ${newStatus ? "activated" : "deactivated"} successfully.`,
+        });
+        setToggleTarget(null);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to update account status.",
+      });
+      setToggleTarget(null);
+    } finally {
+      setToggleLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+
+    try {
+      const res = await api.delete(`/users/${deleteTarget.id}`);
+      if (res.success) {
+        setFeedback({
+          type: "success",
+          message: `User "${deleteTarget.fullName}" (${deleteTarget.email}) was permanently deleted.`,
+        });
+        setDeleteTarget(null);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: "error",
+        message: err.message || "Failed to delete user account.",
+      });
+      setDeleteTarget(null);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -110,7 +197,14 @@ export default function AdminStaffPage() {
             {item.fullName[0]?.toUpperCase() || "U"}
           </div>
           <div className="min-w-0">
-            <span className="font-medium text-[#172033] block truncate">{item.fullName}</span>
+            <div className="flex items-center space-x-1.5">
+              <span className="font-medium text-[#172033] block truncate">{item.fullName}</span>
+              {item.id === user?.id && (
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-[#EFF4FE] text-[#315CF5]">
+                  You
+                </span>
+              )}
+            </div>
             <span className="text-[11px] text-[#64748B] block truncate">{item.email}</span>
           </div>
         </div>
@@ -149,21 +243,61 @@ export default function AdminStaffPage() {
     {
       header: "Actions",
       align: "right",
-      cell: (item) =>
-        isAdmin ? (
-          <button
-            onClick={() => {
-              setEditRoleUser(item);
-              setSelectedRole(item.role);
-              setRoleError(null);
-            }}
-            className="text-[12px] font-medium text-[#315CF5] hover:text-[#2549D8] px-2.5 py-1 rounded-[6px] hover:bg-[#EFF4FE] transition-colors"
-          >
-            Modify Role
-          </button>
+      cell: (item) => {
+        const isSelf = item.id === user?.id;
+        return isAdmin ? (
+          <div className="flex items-center justify-end space-x-1.5">
+            <button
+              onClick={() => {
+                setEditRoleUser(item);
+                setSelectedRole(item.role);
+                setRoleError(null);
+              }}
+              className="text-[12px] font-medium text-[#315CF5] hover:text-[#2549D8] px-2 py-1 rounded-[6px] hover:bg-[#EFF4FE] transition-colors"
+            >
+              Modify Role
+            </button>
+            <button
+              onClick={() => setToggleTarget(item)}
+              disabled={isSelf}
+              title={
+                isSelf
+                  ? "You cannot deactivate your own account"
+                  : item.isActive
+                  ? "Deactivate user account"
+                  : "Activate user account"
+              }
+              className={`text-[12px] font-medium px-2 py-1 rounded-[6px] transition-colors ${
+                isSelf
+                  ? "text-[#CBD5E1] cursor-not-allowed"
+                  : item.isActive
+                  ? "text-[#64748B] hover:text-[#172033] hover:bg-[#F1F5F9]"
+                  : "text-[#16865B] hover:text-[#0E5C3E] hover:bg-[#EDF7F2]"
+              }`}
+            >
+              {item.isActive ? "Deactivate" : "Activate"}
+            </button>
+            <button
+              onClick={() => setDeleteTarget(item)}
+              disabled={isSelf}
+              title={
+                isSelf
+                  ? "You cannot delete your own account"
+                  : `Delete ${item.fullName}`
+              }
+              className={`p-1.5 rounded-[6px] transition-colors ${
+                isSelf
+                  ? "text-[#CBD5E1] cursor-not-allowed"
+                  : "text-[#94A3B8] hover:text-[#D14343] hover:bg-[#FDEDED]"
+              }`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         ) : (
           <span className="text-[11px] text-[#94A3B8]">Restricted</span>
-        ),
+        );
+      },
     },
   ];
 
@@ -193,6 +327,32 @@ export default function AdminStaffPage() {
           </button>
         )}
       </PageHeader>
+
+      {/* Action Feedback Banner */}
+      {feedback && (
+        <div
+          className={`mb-4 p-3 rounded-[8px] border text-[13px] flex items-center justify-between ${
+            feedback.type === "success"
+              ? "bg-[#EDF7F2] border-[#C7E8D8] text-[#16865B]"
+              : "bg-[#FDEDED] border-[#F8C6C6] text-[#D14343]"
+          }`}
+        >
+          <div className="flex items-center space-x-2">
+            {feedback.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+          <button
+            onClick={() => setFeedback(null)}
+            className="text-current hover:opacity-75 p-0.5"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-[10px] border border-[#E5EAF1] shadow-xs">
@@ -393,6 +553,40 @@ export default function AdminStaffPage() {
           </div>
         </div>
       )}
+
+      {/* Account Deactivation / Activation Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={!!toggleTarget}
+        title={toggleTarget?.isActive ? "Deactivate User Account" : "Activate User Account"}
+        description={
+          toggleTarget?.isActive
+            ? `Are you sure you want to deactivate "${toggleTarget?.fullName}" (${toggleTarget?.email})? They will immediately be barred from signing in to the platform.`
+            : `Are you sure you want to activate "${toggleTarget?.fullName}" (${toggleTarget?.email})? They will be granted sign-in access according to their role.`
+        }
+        confirmLabel={toggleTarget?.isActive ? "Deactivate User" : "Activate User"}
+        cancelLabel="Cancel"
+        variant={toggleTarget?.isActive ? "danger" : "primary"}
+        loading={toggleLoading}
+        onConfirm={handleToggleStatusConfirm}
+        onCancel={() => {
+          if (!toggleLoading) setToggleTarget(null);
+        }}
+      />
+
+      {/* Permanent Delete Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Delete User Account"
+        description={`Are you sure you want to permanently delete "${deleteTarget?.fullName}" (${deleteTarget?.email})? All active credentials, tokens, and sessions will be invalidated immediately. This action cannot be undone.`}
+        confirmLabel="Delete User"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => {
+          if (!deleteLoading) setDeleteTarget(null);
+        }}
+      />
     </DashboardShell>
   );
 }

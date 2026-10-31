@@ -22,6 +22,13 @@ router.post(
   UserController.createStaff
 );
 
+router.post(
+  "/",
+  requireRole(Role.ADMIN),
+  validate(createStaffSchema),
+  UserController.createStaff
+);
+
 router.get(
   "/",
   requireRole(Role.ADMIN),
@@ -41,6 +48,19 @@ router.put(
   requireRole(Role.ADMIN),
   validate(updateUserRoleSchema),
   UserController.updateUserRole
+);
+
+router.patch(
+  "/:id/role",
+  requireRole(Role.ADMIN),
+  validate(updateUserRoleSchema),
+  UserController.updateUserRole
+);
+
+router.delete(
+  "/:id",
+  requireRole(Role.ADMIN),
+  UserController.deleteUser
 );
 
 export default router;

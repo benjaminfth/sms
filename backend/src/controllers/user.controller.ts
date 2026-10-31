@@ -48,4 +48,14 @@ export class UserController {
       next(err);
     }
   }
+
+  static async deleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const result = await UserService.deleteUser(id, req.user?.userId);
+      AppResponse.success(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }

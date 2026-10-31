@@ -144,6 +144,21 @@ export class UserService {
       throw new NotFoundError(`User with ID ${userId} not found`);
     }
 
+    // Safety: Prevent deactivating the last admin
+    if (existing.role === Role.ADMIN && data.isActive === false) {
+      const adminCount = await prisma.user.count({
+        where: { role: Role.ADMIN, isActive: true },
+      });
+      if (adminCount <= 1) {
+        throw new ValidationError("Cannot deactivate user: at least one active Admin must remain");
+      }
+    }
+
+    // Safety: Prevent deactivating self
+    if (actorUserId && existing.id === actorUserId && data.isActive === false) {
+      throw new ValidationError("You cannot deactivate your own account");
+    }
+
     const updated = await prisma.user.update({
       where: { id: userId },
       data,
@@ -219,5 +234,60 @@ export class UserService {
     });
 
     return updated;
+  }
+
+  /**
+   * Delete user permanently (ADMIN only).
+   */
+  static async deleteUser(userId: string, actorUserId?: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundError(`User with ID ${userId} not found`);
+    }
+
+    // Safety: Prevent self-deletion
+    if (actorUserId && user.id === actorUserId) {
+      throw new ValidationError("You cannot delete your own account");
+    }
+
+    // Safety: Prevent removing the last admin
+    if (user.role === Role.ADMIN) {
+      const adminCount = await prisma.user.count({
+        where: { role: Role.ADMIN, isActive: true },
+      });
+      if (adminCount <= 1) {
+        throw new ValidationError("Cannot delete user: at least one active Admin must remain");
+      }
+    }
+
+    // Create audit log before deletion
+    await createAuditLog({
+      actorUserId,
+      action: "DELETE_USER",
+      entityType: "USER",
+      entityId: userId,
+      beforeData: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: user.isActive,
+      },
+      afterData: null,
+    });
+
+    // Revoke and delete user record (cascades tokens & notifications, sets customer/audit user null)
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    return {
+      id: userId,
+      email: user.email,
+      fullName: user.fullName,
+      deleted: true,
+    };
   }
 }
