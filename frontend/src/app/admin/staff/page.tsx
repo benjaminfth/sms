@@ -17,6 +17,8 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
 
@@ -43,6 +45,7 @@ export default function AdminStaffPage() {
     password: "",
     role: Role.STAFF,
   });
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -97,6 +100,7 @@ export default function AdminStaffPage() {
       if (res.success) {
         setIsCreateOpen(false);
         setCreateForm({ fullName: "", email: "", password: "", role: Role.STAFF });
+        setShowStaffPassword(false);
         setFeedback({
           type: "success",
           message: `User account for "${createForm.fullName}" created successfully.`,
@@ -439,14 +443,29 @@ export default function AdminStaffPage() {
                 <label className="block text-[12px] font-medium text-[#172033] mb-1">
                   Temporary Password <span className="text-[#D14343]">*</span>
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={createForm.password}
-                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                  placeholder="Min 9 chars (e.g. Brightloop!2026)"
-                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
-                />
+                <div className="relative">
+                  <input
+                    type={showStaffPassword ? "text" : "password"}
+                    required
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                    placeholder="Min 9 chars (e.g. Brightloop!2026)"
+                    className="w-full pl-3 pr-9 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStaffPassword(!showStaffPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#172033] focus:outline-none p-1 rounded transition-colors"
+                    aria-label={showStaffPassword ? "Hide password" : "Show password"}
+                    title={showStaffPassword ? "Hide password" : "Show password"}
+                  >
+                    {showStaffPassword ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
                 <PasswordRequirementsChecklist
                   password={createForm.password}
                   hasSubmitted={Boolean(createError)}

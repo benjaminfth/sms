@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
 import { checkPasswordRequirements } from "@sms/shared";
 
@@ -18,6 +18,8 @@ export default function RegisterPage() {
     companyName: "",
     phone: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export default function RegisterPage() {
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match. Please re-enter your confirmation password.");
+      setError("Passwords do not match. Please verify your confirmation password.");
       return;
     }
 
@@ -46,6 +48,7 @@ export default function RegisterPage() {
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
+        confirmPassword: formData.confirmPassword,
         companyName: formData.companyName || undefined,
         phone: formData.phone || undefined,
       });
@@ -119,7 +122,7 @@ export default function RegisterPage() {
                       required
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                      placeholder="Jane Doe"
+                      placeholder="e.g. John Doe"
                       className="w-full px-3 py-2 bg-surface-card border border-border rounded-input text-[13px] text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-colors"
                     />
                   </div>
@@ -132,7 +135,7 @@ export default function RegisterPage() {
                       type="text"
                       value={formData.companyName}
                       onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                      placeholder="Acme Corp Pvt Ltd"
+                      placeholder="Acme Corp"
                       className="w-full px-3 py-2 bg-surface-card border border-border rounded-input text-[13px] text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-colors"
                     />
                   </div>
@@ -171,14 +174,29 @@ export default function RegisterPage() {
                   <label className="block text-[12px] font-medium text-text-primary mb-1.5">
                     Password *
                   </label>
-                  <input
-                    type="password"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="Min 9 chars (e.g. Pass!2026)"
-                    className="w-full px-3 py-2 bg-surface-card border border-border rounded-input text-[13px] text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-colors font-mono tracking-wider"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Min 9 chars (e.g. Pass!2026)"
+                      className="w-full pl-3 pr-10 py-2 bg-surface-card border border-border rounded-input text-[13px] text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-colors font-mono tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary focus:outline-none p-1 rounded transition-colors"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                   <PasswordRequirementsChecklist
                     password={formData.password}
                     hasSubmitted={hasSubmitted}
@@ -189,14 +207,29 @@ export default function RegisterPage() {
                   <label className="block text-[12px] font-medium text-text-primary mb-1.5">
                     Confirm Password *
                   </label>
-                  <input
-                    type="password"
-                    required
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    placeholder="Re-enter your password"
-                    className="w-full px-3 py-2 bg-surface-card border border-border rounded-input text-[13px] text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-colors font-mono tracking-wider"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={formData.confirmPassword}
+                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      placeholder="Re-enter your password"
+                      className="w-full pl-3 pr-10 py-2 bg-surface-card border border-border rounded-input text-[13px] text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent transition-colors font-mono tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary focus:outline-none p-1 rounded transition-colors"
+                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                   {formData.confirmPassword && (
                     <p
                       className={`mt-1.5 text-[11px] font-medium flex items-center ${
