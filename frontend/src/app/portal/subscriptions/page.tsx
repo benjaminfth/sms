@@ -13,6 +13,48 @@ import {
   Layers,
 } from "lucide-react";
 
+function getSubscriptionPriceMinor(sub: any): string {
+  // 1. Calculate from subscription items if available
+  if (sub.items && sub.items.length > 0) {
+    let total = BigInt(0);
+    for (const item of sub.items) {
+      const unit = BigInt(item.unitPriceMinor || 0);
+      const qty = parseFloat(item.quantity) || 1;
+      total += BigInt(Math.round(Number(unit) * qty));
+    }
+    if (total > BigInt(0)) {
+      return total.toString();
+    }
+  }
+
+  // 2. Fall back to plan prices if attached to a plan
+  if (sub.plan?.prices && sub.plan.prices.length > 0) {
+    const matchingPrice =
+      sub.plan.prices.find((p: any) => p.billingInterval === sub.billingInterval) ||
+      sub.plan.prices[0];
+
+    const amount = matchingPrice?.amountMinor ?? matchingPrice?.priceMinor;
+    if (amount) {
+      return amount.toString();
+    }
+  }
+
+  return "0";
+}
+
+function getSubscriptionTitle(sub: any): string {
+  if (sub.plan?.name) return sub.plan.name;
+  if (sub.items && sub.items.length > 0) {
+    const names = sub.items
+      .map((it: any) => it.product?.name)
+      .filter(Boolean);
+    if (names.length > 0) {
+      return names.join(", ");
+    }
+  }
+  return "Enterprise Subscription";
+}
+
 export default function CustomerSubscriptionsPage() {
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +105,8 @@ export default function CustomerSubscriptionsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {subscriptions.map((sub) => {
-            const planPrice = sub.plan?.prices?.[0]?.amountMinor;
+            const priceMinor = getSubscriptionPriceMinor(sub);
+            const title = getSubscriptionTitle(sub);
             const interval = sub.billingInterval || "MONTHLY";
 
             return (
@@ -78,7 +121,7 @@ export default function CustomerSubscriptionsPage() {
                         {sub.subscriptionNumber}
                       </span>
                       <h3 className="text-[16px] font-semibold text-[#172033] mt-0.5">
-                        {sub.plan?.name || "Enterprise Subscription"}
+                        {title}
                       </h3>
                     </div>
                     <StatusBadge status={sub.status} />
@@ -86,11 +129,7 @@ export default function CustomerSubscriptionsPage() {
 
                   <div className="mt-4 flex items-baseline gap-1.5">
                     <span className="text-[22px] font-semibold text-[#172033] font-mono">
-                      {planPrice ? (
-                        <MoneyDisplay amountMinor={planPrice} currency={sub.currency} />
-                      ) : (
-                        "₹0.00"
-                      )}
+                      <MoneyDisplay amountMinor={priceMinor} currency={sub.currency} />
                     </span>
                     <span className="text-[12px] text-[#64748B] lowercase font-mono">
                       / {sub.intervalCount > 1 ? `${sub.intervalCount} ` : ""}{interval.toLowerCase()}
@@ -101,7 +140,11 @@ export default function CustomerSubscriptionsPage() {
                     <div className="flex items-center justify-between">
                       <span>Start Date:</span>
                       <span className="font-mono text-[#172033]">
-                        {sub.createdAt ? formatDate(sub.createdAt) : "—"}
+                        {sub.currentPeriodStart
+                          ? formatDate(sub.currentPeriodStart)
+                          : sub.createdAt
+                          ? formatDate(sub.createdAt)
+                          : "—"}
                       </span>
                     </div>
 

@@ -109,7 +109,7 @@ export default function CustomerPortalOverviewPage() {
               {data?.activeSubscriptions?.length || 0}
             </div>
             <p className="text-[12px] text-[#64748B] mt-1 truncate">
-              {data?.activeSubscriptions?.[0]?.plan?.name || "Standard Subscription"}
+              {data?.activeSubscriptions?.[0]?.plan?.name || (data?.activeSubscriptions?.[0] as any)?.items?.[0]?.product?.name || "Enterprise Subscription"}
             </p>
           </div>
           <div className="mt-4 pt-3 border-t border-[#E5EAF1]">
