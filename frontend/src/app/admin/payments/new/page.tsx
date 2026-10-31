@@ -7,7 +7,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { api } from "@/lib/api-client";
 import { PaymentMethod, PaymentStatus, CustomerDTO } from "@sms/shared";
-import { ArrowLeft, Save, AlertCircle, CreditCard, Building, Receipt } from "lucide-react";
+import { ArrowLeft, Save, CreditCard, Building, Receipt } from "lucide-react";
 
 export default function RecordPaymentPage() {
   const router = useRouter();
@@ -47,15 +47,16 @@ export default function RecordPaymentPage() {
     loadCustomers();
   }, []);
 
-  // When customer changes, fetch their open invoices
+  // When customer changes, fetch open invoices
   useEffect(() => {
-    if (!formData.customerId) return;
-
-    async function loadInvoices() {
+    async function loadCustomerInvoices() {
+      if (!formData.customerId) {
+        setInvoices([]);
+        return;
+      }
       try {
         const res = await api.get<any[]>("/portal/invoices", { customerId: formData.customerId });
         if (res.success && res.data) {
-          // Filter to open/partially paid
           const open = res.data.filter(
             (inv: any) =>
               inv.status !== "PAID" &&
@@ -65,58 +66,44 @@ export default function RecordPaymentPage() {
           );
           setInvoices(open);
         }
-      } catch {
-        setInvoices([]);
+      } catch (err) {
+        console.error("Failed to load customer open invoices:", err);
       }
     }
-
-    loadInvoices();
+    loadCustomerInvoices();
   }, [formData.customerId]);
-
-  const handleInvoiceSelect = (invId: string) => {
-    setFormData((prev) => {
-      const selected = invoices.find((inv) => inv.id === invId);
-      const autoAmount = selected ? (Number(selected.balanceDueMinor) / 100).toFixed(2) : prev.amountRupees;
-      return {
-        ...prev,
-        invoiceId: invId,
-        amountRupees: autoAmount,
-      };
-    });
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-
-    const amt = parseFloat(formData.amountRupees);
-    if (isNaN(amt) || amt <= 0) {
-      setError("Please specify a valid payment amount greater than ₹0");
+    if (!formData.customerId || !formData.amountRupees) {
+      setError("Please select a customer and specify the payment amount.");
       return;
     }
 
-    const amountMinor = String(Math.round(amt * 100));
-
     setSaving(true);
+    setError(null);
+
     try {
-      const res = await api.post("/payments", {
+      const amountPaise = BigInt(Math.round(parseFloat(formData.amountRupees) * 100)).toString();
+
+      const payload = {
         customerId: formData.customerId,
-        amountMinor,
+        invoiceId: formData.invoiceId || undefined,
+        amountMinor: amountPaise,
         paymentMethod: formData.paymentMethod,
         status: formData.status,
-        paymentReference: formData.paymentReference.trim() || undefined,
-        invoiceId: formData.invoiceId || undefined,
-        internalNotes: formData.internalNotes.trim() || undefined,
-        customerNotes: formData.customerNotes.trim() || undefined,
-      });
+        paymentReference: formData.paymentReference || `REC-${Date.now()}`,
+        notes: formData.notes || undefined,
+        internalNotes: formData.internalNotes || undefined,
+        customerNotes: formData.customerNotes || undefined,
+      };
 
-      if (res.success) {
-        router.push("/admin/payments");
-      } else {
-        setError(res.error?.message || "Failed to record payment");
+      const res = await api.post<any>("/payments", payload);
+      if (res.success && res.data) {
+        router.push(`/admin/payments/${res.data.id}`);
       }
     } catch (err: any) {
-      setError(err?.message || "An error occurred");
+      setError(err.message || "Failed to record payment transaction.");
     } finally {
       setSaving(false);
     }
@@ -124,201 +111,166 @@ export default function RecordPaymentPage() {
 
   return (
     <DashboardShell>
-      <PageHeader
-        title="Record Received Payment"
-        description="Capture manual offline payments (UPI, Bank Transfer, Cash, Card) and allocate to open invoices"
-      >
+      <div className="mb-4">
         <Link
           href="/admin/payments"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
           Back to Payments
         </Link>
-      </PageHeader>
+      </div>
 
-      <div className="max-w-2xl bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-        {error && (
-          <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 text-xs">
-            <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+      <PageHeader
+        title="Record Payment"
+        description="Enter manual bank receipts, offline transfers or settled client payments."
+      />
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Customer Selection */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Customer Account <span className="text-red-500">*</span>
-            </label>
-            <select
-              required
-              value={formData.customerId}
-              onChange={(e) => setFormData({ ...formData, customerId: e.target.value, invoiceId: "" })}
-              className="w-full text-xs border border-slate-200 rounded-lg px-3.5 py-2.5 bg-white focus:ring-2 focus:ring-brand-500"
-            >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.fullName} {c.companyName ? `(${c.companyName})` : ""} — {c.email}
-                </option>
-              ))}
-            </select>
-          </div>
+      {error && (
+        <div className="bg-[#FDEDED] border border-[#F8C6C6] text-[#D14343] px-3.5 py-2.5 rounded-[8px] mb-6 text-[12px] font-medium">
+          {error}
+        </div>
+      )}
 
-          {/* Optional Invoice Allocation Selection */}
-          {invoices.length > 0 && (
-            <div className="p-3.5 bg-brand-50/50 rounded-lg border border-brand-100">
-              <label className="block text-xs font-semibold text-brand-900 mb-1">
-                Auto-Allocate to Open Invoice (Optional)
+      <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs space-y-4">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1]">
+            Transaction Details
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Customer Account <span className="text-[#D14343]">*</span>
               </label>
               <select
-                value={formData.invoiceId}
-                onChange={(e) => handleInvoiceSelect(e.target.value)}
-                className="w-full text-xs border border-brand-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                required
+                value={formData.customerId}
+                onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               >
-                <option value="">Do not allocate immediately (leave unallocated)</option>
-                {invoices.map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    Invoice #{inv.invoiceNumber} — Balance Due: ₹
-                    {(Number(inv.balanceDueMinor) / 100).toLocaleString("en-IN")}
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.fullName} {c.companyName ? `(${c.companyName})` : ""}
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-brand-600 mt-1">
-                Selecting an invoice will automatically settle or partially pay the invoice balance upon recording.
-              </p>
             </div>
-          )}
 
-          {/* Amount and Payment Method */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Amount Received (₹) <span className="text-red-500">*</span>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Allocate to Open Invoice (Optional)
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                  ₹
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="e.g. 2500.00"
-                  value={formData.amountRupees}
-                  onChange={(e) => setFormData({ ...formData, amountRupees: e.target.value })}
-                  className="w-full pl-7 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
+              <select
+                value={formData.invoiceId}
+                onChange={(e) => {
+                  const invId = e.target.value;
+                  setFormData((prev) => {
+                    const inv = invoices.find((i) => i.id === invId);
+                    return {
+                      ...prev,
+                      invoiceId: invId,
+                      amountRupees: inv ? (Number(inv.balanceDueMinor) / 100).toString() : prev.amountRupees,
+                    };
+                  });
+                }}
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+              >
+                <option value="">Leave unallocated (Credit balance)</option>
+                {invoices.map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.invoiceNumber} (Due: ₹{(Number(inv.balanceDueMinor) / 100).toLocaleString("en-IN")})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Payment Method <span className="text-red-500">*</span>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Amount Received (INR ₹) <span className="text-[#D14343]">*</span>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="e.g. 5000.00"
+                value={formData.amountRupees}
+                onChange={(e) => setFormData({ ...formData, amountRupees: e.target.value })}
+                className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Payment Method <span className="text-[#D14343]">*</span>
               </label>
               <select
                 value={formData.paymentMethod}
-                onChange={(e) =>
-                  setFormData({ ...formData, paymentMethod: e.target.value as PaymentMethod })
-                }
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:ring-2 focus:ring-brand-500"
+                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as PaymentMethod })}
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               >
                 <option value={PaymentMethod.UPI}>UPI (GPay / PhonePe / QR)</option>
-                <option value={PaymentMethod.BANK_TRANSFER}>Bank Wire / NEFT / RTGS</option>
-                <option value={PaymentMethod.CARD}>Credit / Debit Card</option>
-                <option value={PaymentMethod.CASH}>Cash Deposit</option>
-                <option value={PaymentMethod.OTHER}>Other Offline</option>
+                <option value={PaymentMethod.BANK_TRANSFER}>Bank Transfer (NEFT/RTGS/IMPS)</option>
+                <option value={PaymentMethod.CARD}>Corporate Credit / Debit Card</option>
+                <option value={PaymentMethod.CASH}>Cash Receipt</option>
+                <option value={PaymentMethod.OTHER}>Other Offline Channel</option>
               </select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Custom Transaction Reference
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                UTR / Reference Number
               </label>
               <input
                 type="text"
-                placeholder="Optional (Auto-generated if empty)"
+                placeholder="Bank UTR or Gateway Ref"
                 value={formData.paymentReference}
                 onChange={(e) => setFormData({ ...formData, paymentReference: e.target.value })}
-                className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3 py-2"
+                className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Payment Status
-              </label>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">Status</label>
               <select
                 value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value as PaymentStatus })
-                }
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as PaymentStatus })}
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               >
-                <option value={PaymentStatus.COMPLETED}>Completed (Successful)</option>
-                <option value={PaymentStatus.PENDING}>Pending Verification</option>
+                <option value={PaymentStatus.COMPLETED}>Completed (Settled)</option>
+                <option value={PaymentStatus.PENDING}>Pending Clearing</option>
               </select>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700">
-                  Internal Staff Note (Confidential)
-                </label>
-                <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded font-medium">
-                  Internal only · Never shown to customer
-                </span>
-              </div>
-              <textarea
-                rows={2}
-                placeholder="e.g. UTR # 42398492834, HDFC corporate account reconciliation"
-                value={formData.internalNotes}
-                onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700">
-                  Customer-Visible Note (Optional)
-                </label>
-                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-medium">
-                  Visible on Customer Portal receipt
-                </span>
-              </div>
-              <textarea
-                rows={2}
-                placeholder="e.g. Payment received through HDFC bank transfer for October subscription."
-                value={formData.customerNotes}
-                onChange={(e) => setFormData({ ...formData, customerNotes: e.target.value })}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#172033] mb-1">Receipt Notes</label>
+            <input
+              type="text"
+              placeholder="e.g. Paid via ICICI Current Account"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+            />
           </div>
+        </div>
 
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
-            <Link
-              href="/admin/payments"
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
-            >
-              Cancel
-            </Link>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition disabled:opacity-50"
-            >
-              <Save className="w-4 h-4 mr-1.5" />
-              {saving ? "Recording..." : "Record Payment Entry"}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="flex justify-end space-x-2.5">
+          <Link
+            href="/admin/payments"
+            className="px-4 py-2 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px] transition"
+          >
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs transition disabled:opacity-50"
+          >
+            {saving ? "Recording..." : "Record Payment"}
+          </button>
+        </div>
+      </form>
     </DashboardShell>
   );
 }

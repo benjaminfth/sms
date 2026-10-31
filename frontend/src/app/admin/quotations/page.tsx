@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
 import { QuotationWithDetailsDTO, PaginationMeta, QuotationStatus } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, FileText, ArrowRight, CheckCircle2, XCircle, Send, LayoutTemplate } from "lucide-react";
+import { Plus, Search, FileText, ArrowRight, CheckCircle2, XCircle, Send, Eye } from "lucide-react";
 
 export default function AdminQuotationsPage() {
   const [quotations, setQuotations] = useState<QuotationWithDetailsDTO[]>([]);
@@ -20,6 +20,7 @@ export default function AdminQuotationsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Action Dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -58,7 +59,11 @@ export default function AdminQuotationsPage() {
     fetchQuotations();
   }, [fetchQuotations]);
 
-  const handleAction = async (quotationId: string, actionType: "send" | "accept" | "reject" | "expire" | "convert") => {
+  const handleAction = async (
+    quotationId: string,
+    actionType: "send" | "accept" | "reject" | "expire" | "convert"
+  ) => {
+    setActionError(null);
     try {
       if (actionType === "convert") {
         await api.post(`/quotations/${quotationId}/convert`, { billingInterval: "MONTHLY" });
@@ -67,7 +72,7 @@ export default function AdminQuotationsPage() {
       }
       fetchQuotations();
     } catch (err: any) {
-      alert(err.message || `Failed to ${actionType} quotation`);
+      setActionError(err.message || `Failed to perform ${actionType} action.`);
     }
   };
 
@@ -78,11 +83,11 @@ export default function AdminQuotationsPage() {
         <div>
           <Link
             href={`/admin/quotations/${item.id}`}
-            className="font-semibold text-brand-600 hover:text-brand-800 flex items-center space-x-1"
+            className="font-medium text-[#172033] hover:text-[#315CF5] font-mono block"
           >
-            <span>{item.quotationNumber}</span>
+            {item.quotationNumber}
           </Link>
-          <span className="text-xs text-slate-400 font-mono">
+          <span className="text-[11px] text-[#64748B] font-mono">
             {formatDate(item.createdAt)}
           </span>
         </div>
@@ -91,10 +96,10 @@ export default function AdminQuotationsPage() {
     {
       header: "Customer",
       cell: (item) => (
-        <div>
-          <p className="font-medium text-slate-900">{item.customer?.fullName || "—"}</p>
+        <div className="min-w-0 max-w-[200px]">
+          <p className="font-medium text-[#172033] truncate">{item.customer?.fullName || "—"}</p>
           {item.customer?.companyName && (
-            <p className="text-xs text-slate-500">{item.customer.companyName}</p>
+            <p className="text-[11px] text-[#64748B] truncate">{item.customer.companyName}</p>
           )}
         </div>
       ),
@@ -102,15 +107,16 @@ export default function AdminQuotationsPage() {
     {
       header: "Valid Until",
       cell: (item) => (
-        <span className="text-xs font-mono text-slate-600">
+        <span className="text-[12px] font-mono text-[#64748B]">
           {formatDate(item.validUntil)}
         </span>
       ),
     },
     {
       header: "Total Amount",
+      align: "right",
       cell: (item) => (
-        <div className="font-semibold text-slate-900">
+        <div className="font-mono font-medium text-[#172033]">
           <MoneyDisplay amountMinor={item.totalAmountMinor} currency={item.currency} />
         </div>
       ),
@@ -121,9 +127,17 @@ export default function AdminQuotationsPage() {
     },
     {
       header: "Actions",
-      className: "text-right",
+      align: "right",
       cell: (item) => (
-        <div className="flex items-center justify-end space-x-2">
+        <div className="flex items-center justify-end space-x-1.5">
+          <Link
+            href={`/admin/quotations/${item.id}`}
+            className="p-1.5 text-[#64748B] hover:text-[#172033] hover:bg-[#F8FAFC] rounded-[6px] transition"
+            title="View Details"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </Link>
+
           {item.status === QuotationStatus.DRAFT && (
             <button
               onClick={() =>
@@ -134,9 +148,8 @@ export default function AdminQuotationsPage() {
                   action: () => handleAction(item.id, "send"),
                 })
               }
-              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200"
+              className="px-2 py-0.5 text-[11px] font-medium rounded-[5px] text-[#3978C8] bg-[#EEF4FC] hover:bg-[#C8DEF6] border border-[#C8DEF6] transition"
             >
-              <Send className="w-3 h-3 mr-1" />
               Send
             </button>
           )}
@@ -148,13 +161,12 @@ export default function AdminQuotationsPage() {
                   setConfirmDialog({
                     isOpen: true,
                     title: "Accept Quotation",
-                    description: `Record acceptance of quotation ${item.quotationNumber}?`,
+                    description: `Record client acceptance for quotation ${item.quotationNumber}?`,
                     action: () => handleAction(item.id, "accept"),
                   })
                 }
-                className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200"
+                className="px-2 py-0.5 text-[11px] font-medium rounded-[5px] text-[#16865B] bg-[#EDF7F2] hover:bg-[#C7E8D8] border border-[#C7E8D8] transition"
               >
-                <CheckCircle2 className="w-3 h-3 mr-1" />
                 Accept
               </button>
               <button
@@ -166,9 +178,8 @@ export default function AdminQuotationsPage() {
                     action: () => handleAction(item.id, "reject"),
                   })
                 }
-                className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
+                className="px-2 py-0.5 text-[11px] font-medium rounded-[5px] text-[#D14343] bg-[#FDEDED] hover:bg-[#F8C6C6] border border-[#F8C6C6] transition"
               >
-                <XCircle className="w-3 h-3 mr-1" />
                 Reject
               </button>
             </>
@@ -180,23 +191,15 @@ export default function AdminQuotationsPage() {
                 setConfirmDialog({
                   isOpen: true,
                   title: "Convert to Subscription",
-                  description: `Convert accepted quotation ${item.quotationNumber} into an active monthly recurring subscription?`,
+                  description: `Convert quotation ${item.quotationNumber} into an active recurring subscription?`,
                   action: () => handleAction(item.id, "convert"),
                 })
               }
-              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
+              className="px-2.5 py-0.5 text-[11px] font-medium rounded-[5px] text-white bg-[#315CF5] hover:bg-[#2549D8] transition shadow-xs"
             >
-              <ArrowRight className="w-3 h-3 mr-1" />
-              Convert
+              Convert to Sub
             </button>
           )}
-
-          <Link
-            href={`/admin/quotations/${item.id}`}
-            className="text-xs text-slate-500 hover:text-slate-800 underline font-medium ml-2"
-          >
-            Details
-          </Link>
         </div>
       ),
     },
@@ -206,53 +209,61 @@ export default function AdminQuotationsPage() {
     <DashboardShell>
       <PageHeader
         title="Quotations"
-        description="Manage commercial quotations, customer acceptance, and conversion to active subscriptions."
+        description="Formal enterprise proposals, line-item pricing breakdowns and subscription conversions."
+        badge={
+          pagination ? (
+            <span className="px-2 py-0.5 rounded-[5px] bg-[#F1F5F9] border border-[#E5EAF1] text-[11px] font-medium text-[#64748B]">
+              {pagination.total} Total
+            </span>
+          ) : undefined
+        }
       >
-        <div className="flex items-center space-x-2">
-          <Link
-            href="/admin/quotation-templates"
-            className="inline-flex items-center px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
-          >
-            <LayoutTemplate className="w-4 h-4 mr-2 text-slate-500" />
-            Templates
-          </Link>
-          <Link
-            href="/admin/quotations/new"
-            className="inline-flex items-center px-3.5 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 shadow-sm"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Quotation
-          </Link>
-        </div>
+        <Link
+          href="/admin/quotations/new"
+          className="inline-flex items-center px-3.5 py-1.5 text-[13px] font-medium rounded-[8px] bg-[#315CF5] text-white hover:bg-[#2549D8] shadow-xs transition"
+        >
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
+          New Quotation
+        </Link>
       </PageHeader>
 
-      {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+      {actionError && (
+        <div className="mb-4 p-3 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
+          {actionError}
+        </div>
+      )}
+
+      {/* Filter and Search Bar */}
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search quotation # or customer..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by quote # or customer..."
+            className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-[#F8FAFC] border border-[#E5EAF1] rounded-[8px] focus:bg-white focus:outline-hidden focus:border-[#315CF5] text-[#172033] transition"
           />
         </div>
 
-        <div className="flex items-center space-x-3 w-full md:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-slate-700"
-          >
-            <option value="">All Statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="SENT">Sent</option>
-            <option value="ACCEPTED">Accepted</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="EXPIRED">Expired</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          className="w-full sm:w-auto px-3 py-1.5 text-[12px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+        >
+          <option value="">All Statuses</option>
+          <option value="DRAFT">Draft</option>
+          <option value="SENT">Sent</option>
+          <option value="ACCEPTED">Accepted</option>
+          <option value="REJECTED">Rejected</option>
+          <option value="EXPIRED">Expired</option>
+        </select>
       </div>
 
       <DataTable
@@ -261,14 +272,19 @@ export default function AdminQuotationsPage() {
         pagination={pagination}
         onPageChange={(p) => setPage(p)}
         loading={loading}
+        emptyTitle="No quotations found"
+        emptyDescription="Create commercial quotations and proposal estimates for client onboarding."
       />
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
         description={confirmDialog.description}
-        onConfirm={confirmDialog.action}
-        onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={async () => {
+          await confirmDialog.action();
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        }}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
     </DashboardShell>
   );

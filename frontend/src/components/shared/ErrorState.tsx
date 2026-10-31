@@ -13,16 +13,16 @@ export function ErrorState({
   onRetry,
 }: ErrorStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center bg-red-50/50 border border-red-200 rounded-xl my-4">
-      <div className="p-3 bg-red-100 text-red-600 rounded-full mb-3">
-        <AlertCircle className="w-6 h-6" />
+    <div className="flex flex-col items-center justify-center p-8 text-center bg-[#FDEDED]/40 border border-[#F8C6C6] rounded-[10px] my-4">
+      <div className="w-9 h-9 bg-[#FDEDED] text-[#D14343] rounded-[8px] flex items-center justify-center mb-2.5">
+        <AlertCircle className="w-5 h-5" />
       </div>
-      <h3 className="text-base font-semibold text-red-900">{title}</h3>
-      <p className="text-sm text-red-600 max-w-md mt-1">{message}</p>
+      <h3 className="text-[15px] font-semibold text-[#172033]">{title}</h3>
+      <p className="text-[13px] text-[#64748B] max-w-md mt-1 leading-relaxed">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="mt-4 px-4 py-2 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition"
+          className="mt-3.5 px-3.5 py-1.5 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px] transition"
         >
           Try Again
         </button>

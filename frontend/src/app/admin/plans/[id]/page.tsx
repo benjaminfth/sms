@@ -70,131 +70,142 @@ export default function EditPlanPage() {
   if (loading) {
     return (
       <DashboardShell>
-        <div className="p-8 text-center text-slate-500">Loading plan...</div>
+        <div className="p-12 text-center text-[#94A3B8]">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#315CF5] border-t-transparent" />
+          <p className="mt-2 text-[12px]">Loading plan details...</p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <DashboardShell>
+        <div className="p-8 text-center bg-white border border-[#E5EAF1] rounded-[10px]">
+          <p className="text-[14px] font-medium text-[#172033]">Plan not found</p>
+          <Link href="/admin/plans" className="mt-3 inline-block text-[13px] text-[#315CF5]">
+            Back to Plans
+          </Link>
+        </div>
       </DashboardShell>
     );
   }
 
   return (
     <DashboardShell>
-      <PageHeader
-        title={plan ? `Plan: ${plan.name}` : "Plan Details"}
-        description={`Code: ${plan?.code}`}
-      >
+      <div className="mb-4">
         <Link
           href="/admin/plans"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
           Back to Plans
         </Link>
-      </PageHeader>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-medium">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">
-              Plan saved successfully. Existing subscriptions remain unaffected.
-            </div>
-          )}
+      <PageHeader
+        title={`Plan: ${plan.name}`}
+        description={`Code: ${plan.code} • Configure tier settings and rules`}
+        badge={<StatusBadge status={plan.isActive ? "ACTIVE" : "INACTIVE"} />}
+      />
 
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">Plan Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
+      {error && (
+        <div className="mb-6 p-3 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
+          {error}
+        </div>
+      )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">Description</label>
-              <textarea
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
+      {success && (
+        <div className="mb-6 p-3 bg-[#EDF7F2] text-[#16865B] border border-[#C7E8D8] rounded-[8px] text-[12px] font-medium">
+          Plan configuration saved successfully.
+        </div>
+      )}
 
-            <div className="flex items-center space-x-2 pt-2">
+      <form onSubmit={handleSave} className="space-y-6 max-w-3xl">
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs space-y-4">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1]">
+            Plan Configuration
+          </h2>
+
+          <div>
+            <label className="block text-[12px] font-medium text-[#172033] mb-1">
+              Plan Name <span className="text-[#D14343]">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-medium text-[#172033] mb-1">
+              Description
+            </label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-3 py-2 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
+            />
+          </div>
+
+          <div className="pt-2">
+            <label className="flex items-center space-x-2 text-[13px] text-[#172033] cursor-pointer">
               <input
                 type="checkbox"
-                id="isActive"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                className="rounded-[4px] border-[#CBD5E1] text-[#315CF5] focus:ring-[#315CF5]"
               />
-              <label htmlFor="isActive" className="text-sm font-medium text-slate-700 cursor-pointer">
-                Plan is active for new subscriptions
-              </label>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition"
-              >
-                <Save className="w-3.5 h-3.5 mr-1.5" />
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
+              <span className="font-medium">Active and open for new subscriptions</span>
+            </label>
+          </div>
         </div>
 
-        {/* Pricing Tiers and Items Inspector */}
-        <div className="space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-indigo-600" />
-              <span>Configured Frequencies</span>
-            </h3>
+        {/* Existing Price Tiers */}
+        {plan.prices && plan.prices.length > 0 && (
+          <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+            <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1] mb-3">
+              Configured Billing Tiers
+            </h2>
             <div className="space-y-2">
-              {plan?.prices.map((p) => (
-                <div key={p.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-slate-900">
-                      <MoneyDisplay amountMinor={p.amountMinor} currency={p.currency} />
-                    </span>
-                    <span className="text-slate-500 ml-1">/ {p.billingInterval}</span>
-                  </div>
-                  <StatusBadge status={p.isActive ? "ACTIVE" : "INACTIVE"} />
+              {plan.prices.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-2.5 bg-[#F8FAFC] rounded-[8px] border border-[#E5EAF1] text-[12px]"
+                >
+                  <span className="font-medium uppercase tracking-wider font-mono text-[#64748B]">
+                    {p.intervalCount > 1 ? `${p.intervalCount} ` : ""}{p.billingInterval}
+                  </span>
+                  <span className="font-mono text-[#172033] font-semibold">
+                    <MoneyDisplay amountMinor={p.amountMinor} currency={p.currency} />
+                  </span>
                 </div>
               ))}
             </div>
           </div>
+        )}
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center space-x-2">
-              <Layers className="w-4 h-4 text-indigo-600" />
-              <span>Included Products</span>
-            </h3>
-            <div className="space-y-2">
-              {plan?.items && plan.items.length > 0 ? (
-                plan.items.map((it) => (
-                  <div key={it.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-                    <p className="font-semibold text-slate-900">{it.product?.name}</p>
-                    <p className="text-[11px] text-slate-500 font-mono">
-                      Qty: {it.quantity} {it.productVariant ? `• Variant: ${it.productVariant.name}` : ""}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-slate-400 italic">No products attached.</p>
-              )}
-            </div>
-          </div>
+        <div className="flex justify-end space-x-2.5">
+          <Link
+            href="/admin/plans"
+            className="px-4 py-2 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px] transition"
+          >
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs transition flex items-center space-x-1.5"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{saving ? "Saving..." : "Save Changes"}</span>
+          </button>
         </div>
-      </div>
+      </form>
     </DashboardShell>
   );
 }

@@ -8,10 +8,8 @@ import {
   Mail,
   Phone,
   MapPin,
-  FileCheck,
-  CheckCircle2,
-  AlertTriangle,
   Save,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function CustomerProfilePage() {
@@ -38,22 +36,20 @@ export default function CustomerProfilePage() {
       try {
         const res = await api.get<any>("/portal/profile");
         if (res.success && res.data) {
-          const p = res.data;
-          setProfile(p);
-          setFullName(p.fullName || "");
-          setCompanyName(p.companyName || "");
-          setPhone(p.phone || "");
-          setBillingAddressLine1(p.billingAddressLine1 || "");
-          setBillingAddressLine2(p.billingAddressLine2 || "");
-          setCity(p.city || "");
-          setState(p.state || "");
-          setPostalCode(p.postalCode || "");
-          setGstOrTaxId(p.gstOrTaxId || "");
-        } else {
-          setError(res.error?.message || "Failed to load profile");
+          const d = res.data;
+          setProfile(d);
+          setFullName(d.fullName || "");
+          setCompanyName(d.companyName || "");
+          setPhone(d.phone || "");
+          setBillingAddressLine1(d.billingAddressLine1 || "");
+          setBillingAddressLine2(d.billingAddressLine2 || "");
+          setCity(d.city || "");
+          setState(d.state || "");
+          setPostalCode(d.postalCode || "");
+          setGstOrTaxId(d.gstOrTaxId || "");
         }
       } catch (err: any) {
-        setError(err.message || "Failed to load profile");
+        setError(err.message || "Failed to load company profile");
       } finally {
         setLoading(false);
       }
@@ -64,29 +60,28 @@ export default function CustomerProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     setSavedSuccess(false);
+
     try {
-      const res = await api.patch<any>("/portal/profile", {
+      const res = await api.patch("/portal/profile", {
         fullName,
-        companyName: companyName || null,
-        phone: phone || null,
-        billingAddressLine1: billingAddressLine1 || null,
-        billingAddressLine2: billingAddressLine2 || null,
-        city: city || null,
-        state: state || null,
-        postalCode: postalCode || null,
-        gstOrTaxId: gstOrTaxId || null,
+        companyName,
+        phone,
+        billingAddressLine1,
+        billingAddressLine2,
+        city,
+        state,
+        postalCode,
+        gstOrTaxId,
       });
 
-      if (res.success && res.data) {
-        setProfile(res.data);
+      if (res.success) {
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 3000);
-      } else {
-        alert(res.error?.message || "Failed to update profile");
       }
     } catch (err: any) {
-      alert(err.message || "An error occurred");
+      setError(err.message || "Failed to update profile");
     } finally {
       setSaving(false);
     }
@@ -94,189 +89,170 @@ export default function CustomerProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="py-20 text-center text-[#94A3B8]">
+        <div className="inline-block animate-spin rounded-full h-7 w-7 border-2 border-[#315CF5] border-t-transparent" />
+        <p className="mt-2 text-[12px] text-[#64748B]">Loading company profile...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-          Billing Profile & Organization Details
+    <div className="space-y-6 max-w-3xl">
+      <div className="pb-5 border-b border-[#E5EAF1]">
+        <h1 className="text-[26px] font-semibold tracking-tight text-[#172033] leading-tight">
+          Company Profile
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Update your company details, legal billing address, and GSTIN identification used for tax
-          invoices.
+        <p className="mt-1 text-[13px] text-[#64748B]">
+          Update contact information, corporate tax identifiers and official billing coordinates.
         </p>
       </div>
 
       {savedSuccess && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2 text-sm">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>Billing profile updated successfully. Future invoices will reflect these details.</span>
+        <div className="p-3 bg-[#EDF7F2] text-[#16865B] border border-[#C7E8D8] rounded-[8px] text-[12px] font-medium flex items-center space-x-2">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Profile changes saved successfully.</span>
         </div>
       )}
 
       {error && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-2 text-sm">
-          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-          <span>{error}</span>
+        <div className="p-3 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
+          {error}
         </div>
       )}
 
-      <form onSubmit={handleSave} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 space-y-6">
-        {/* Account Info (Read-only Email) */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <User className="w-4 h-4" />
-            Contact & Identity
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <form onSubmit={handleSave} className="space-y-6">
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs space-y-4">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1]">
+            Contact & Entity Details
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[13px]">
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Full Name</label>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Primary Contact Name <span className="text-[#D14343]">*</span>
+              </label>
               <input
                 type="text"
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Company / Organization</label>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Corporate Entity / Company
+              </label>
               <input
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="e.g. Acme Innovations Pvt Ltd"
-                className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Registered Email</label>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Contact Phone
+              </label>
               <input
-                type="email"
-                disabled
-                value={profile?.email || ""}
-                className="w-full text-sm border border-gray-200 bg-gray-50 text-gray-500 rounded-lg p-2.5 cursor-not-allowed"
-              />
-              <span className="text-[11px] text-gray-400">Primary login credential (managed by administrator)</span>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Phone Number</label>
-              <input
-                type="tel"
+                type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98765 43210"
-                className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                GSTIN / Tax ID
+              </label>
+              <input
+                type="text"
+                value={gstOrTaxId}
+                onChange={(e) => setGstOrTaxId(e.target.value)}
+                placeholder="29AAAAA0000A1Z5"
+                className="w-full px-3 py-1.5 text-[13px] font-mono uppercase bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
           </div>
         </div>
 
-        {/* Tax Information */}
-        <div className="pt-6 border-t border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <FileCheck className="w-4 h-4" />
-            Taxation & Compliance
-          </h3>
-          <div className="max-w-sm">
-            <label className="text-xs font-semibold text-gray-700 block mb-1">
-              Customer GSTIN / Tax Identification
-            </label>
-            <input
-              type="text"
-              value={gstOrTaxId}
-              onChange={(e) => setGstOrTaxId(e.target.value.toUpperCase())}
-              placeholder="e.g. 29AABCU9603R1ZM"
-              className="w-full font-mono text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-            />
-            <span className="text-[11px] text-gray-400 mt-1 block">
-              Used to generate input tax credit eligible B2B GST tax invoices.
-            </span>
-          </div>
-        </div>
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs space-y-4">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1]">
+            Billing Coordinates
+          </h2>
 
-        {/* Billing Address */}
-        <div className="pt-6 border-t border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <MapPin className="w-4 h-4" />
-            Billing & Registered Address
-          </h3>
-          <div className="space-y-4">
+          <div className="space-y-3.5 text-[13px]">
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Address Line 1</label>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Address Line 1
+              </label>
               <input
                 type="text"
                 value={billingAddressLine1}
                 onChange={(e) => setBillingAddressLine1(e.target.value)}
-                placeholder="Building name, Floor, Street"
-                className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="Street address or suite"
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Address Line 2 (Optional)</label>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Address Line 2 (Optional)
+              </label>
               <input
                 type="text"
                 value={billingAddressLine2}
                 onChange={(e) => setBillingAddressLine2(e.target.value)}
-                placeholder="Area, Landmark"
-                className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="Building, Landmark, etc."
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">City</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">City</label>
                 <input
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Bengaluru"
-                  className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">State</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">State</label>
                 <input
                   type="text"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
-                  placeholder="e.g. Karnataka"
-                  className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">Postal Code (PIN)</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">PIN / Postal</label>
                 <input
                   type="text"
                   value={postalCode}
                   onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="e.g. 560001"
-                  className="w-full text-sm border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="pt-6 border-t border-gray-100 flex items-center justify-end">
+        <div className="flex justify-end pt-2">
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-sm transition-all disabled:opacity-50"
+            className="px-4 py-2 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs transition flex items-center space-x-1.5"
           >
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving Changes..." : "Save Profile Details"}
+            <Save className="w-3.5 h-3.5" />
+            <span>{saving ? "Saving..." : "Save Profile"}</span>
           </button>
         </div>
       </form>

@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { MoneyDisplay } from "@/components/shared/MoneyDisplay";
+import { formatDate } from "@/lib/utils";
 import {
   Receipt,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  ArrowUpRight,
-  Calendar,
+  Printer,
+  Eye,
+  CreditCard,
 } from "lucide-react";
 
 export default function CustomerInvoicesPage() {
@@ -33,123 +34,87 @@ export default function CustomerInvoicesPage() {
     loadInvoices();
   }, []);
 
-  const getStatusBadge = (status: string) => {
-    if (status === "PAID") {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
-          <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-          Paid
-        </span>
-      );
-    }
-    if (status === "PARTIALLY_PAID") {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
-          <Clock className="w-3.5 h-3.5 mr-1" />
-          Partially Paid
-        </span>
-      );
-    }
-    if (status === "OVERDUE") {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">
-          <AlertTriangle className="w-3.5 h-3.5 mr-1" />
-          Overdue
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-brand-700">
-        Issued
-      </span>
-    );
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">My Invoices</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Review billing statements, inspect line-item taxes, and initiate invoice payments
-          </p>
-        </div>
+      <div className="pb-5 border-b border-[#E5EAF1]">
+        <h1 className="text-[26px] font-semibold tracking-tight text-[#172033] leading-tight">
+          My Invoices
+        </h1>
+        <p className="mt-1 text-[13px] text-[#64748B]">
+          Official billing statements, payment receipts and tax assessments for your account.
+        </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-        {loading ? (
-          <div className="p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-brand-600 border-t-transparent" />
-            <p className="text-xs text-slate-400 mt-2 font-medium">Loading invoices...</p>
+      {loading ? (
+        <div className="py-20 text-center text-[#94A3B8]">
+          <div className="inline-block animate-spin rounded-full h-7 w-7 border-2 border-[#315CF5] border-t-transparent" />
+          <p className="mt-2 text-[12px] text-[#64748B]">Loading billing statements...</p>
+        </div>
+      ) : invoices.length === 0 ? (
+        <div className="bg-white rounded-[10px] border border-[#E5EAF1] p-12 text-center shadow-xs">
+          <div className="w-10 h-10 rounded-[8px] bg-[#F8FAFC] border border-[#E5EAF1] flex items-center justify-center mx-auto text-[#94A3B8] mb-3">
+            <Receipt className="w-5 h-5" />
           </div>
-        ) : invoices.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
-              <Receipt className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">No invoices found</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Your account has no issued statements at this time.
-            </p>
-          </div>
-        ) : (
+          <h3 className="text-[15px] font-semibold text-[#172033]">No invoices found</h3>
+          <p className="text-[13px] text-[#64748B] mt-1 max-w-sm mx-auto">
+            You do not currently have any invoices issued under your customer account.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-[10px] border border-[#E5EAF1] shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="bg-slate-50/75 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-4">Invoice #</th>
-                  <th className="py-3 px-4">Due Date</th>
-                  <th className="py-3 px-4">Total Amount</th>
-                  <th className="py-3 px-4">Amount Paid</th>
-                  <th className="py-3 px-4">Balance Due</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+                <tr className="bg-[#F8FAFC] border-b border-[#E5EAF1] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                  <th className="py-2.5 px-4">Invoice #</th>
+                  <th className="py-2.5 px-4">Issue Date</th>
+                  <th className="py-2.5 px-4">Due Date</th>
+                  <th className="py-2.5 px-4 text-right">Total Amount</th>
+                  <th className="py-2.5 px-4 text-right">Balance Due</th>
+                  <th className="py-2.5 px-4 text-right">Status</th>
+                  <th className="py-2.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {invoices.map((inv) => {
-                  const total = (Number(inv.totalAmountMinor) / 100).toLocaleString("en-IN");
-                  const paid = (Number(inv.amountPaidMinor) / 100).toLocaleString("en-IN");
-                  const due = (Number(inv.balanceDueMinor) / 100).toLocaleString("en-IN");
-
-                  return (
-                    <tr key={inv.id} className="hover:bg-slate-50/50 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        #{inv.invoiceNumber}
-                      </td>
-                      <td className="py-3 px-4 text-slate-500">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-3 h-3 text-slate-400" />
-                          <span>{new Date(inv.dueDate).toLocaleDateString("en-IN")}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">₹{total}</td>
-                      <td className="py-3 px-4 font-mono text-emerald-600">₹{paid}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-amber-600">
-                        ₹{due}
-                      </td>
-                      <td className="py-3 px-4">{getStatusBadge(inv.status)}</td>
-                      <td className="py-3 px-4 text-right">
+              <tbody className="divide-y divide-[#E5EAF1]">
+                {invoices.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-[#F8FAFC] transition-colors">
+                    <td className="py-3 px-4 font-mono font-medium text-[#172033]">
+                      <Link href={`/portal/invoices/${inv.id}`} className="hover:text-[#315CF5]">
+                        {inv.invoiceNumber}
+                      </Link>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[#64748B]">
+                      {formatDate(inv.createdAt)}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[#64748B]">
+                      {formatDate(inv.dueDate)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-medium text-[#172033]">
+                      <MoneyDisplay amountMinor={inv.totalAmountMinor} currency={inv.currency} />
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-medium text-[#C58A24]">
+                      <MoneyDisplay amountMinor={inv.balanceDueMinor} currency={inv.currency} />
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <StatusBadge status={inv.status} />
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end space-x-1.5">
                         <Link
                           href={`/portal/invoices/${inv.id}`}
-                          className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                            inv.status === "PAID"
-                              ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              : "bg-brand-600 text-white hover:bg-brand-700 shadow-xs"
-                          }`}
+                          className="px-2.5 py-1 text-[12px] font-medium rounded-[6px] bg-[#F8FAFC] border border-[#E5EAF1] text-[#172033] hover:bg-[#EFF4FE] hover:text-[#315CF5] transition"
                         >
-                          {inv.status === "PAID" ? "View Details" : "Pay Statement"}
-                          <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
+                          {inv.status === "PAID" ? "View Details" : "Pay Now"}
                         </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

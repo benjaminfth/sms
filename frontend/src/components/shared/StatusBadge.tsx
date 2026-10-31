@@ -9,30 +9,35 @@ interface StatusBadgeProps {
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   const norm = (status || "").toUpperCase();
 
-  let styles = "bg-slate-100 text-slate-700 border-slate-200";
+  let styles = "bg-[#F1F5F9] text-[#64748B] border-[#E5EAF1]";
 
-  if (["ACTIVE", "COMPLETED", "PAID", "ACCEPTED"].includes(norm)) {
-    styles = "bg-emerald-50 text-emerald-700 border-emerald-200";
-  } else if (["TRIALING", "PENDING", "ISSUED", "PROCESSING", "SENT"].includes(norm)) {
-    styles = "bg-blue-50 text-blue-700 border-blue-200";
-  } else if (["PAST_DUE", "PARTIALLY_PAID", "SURCHARGE", "PAUSED"].includes(norm)) {
-    styles = "bg-amber-50 text-amber-700 border-amber-200";
+  if (["ACTIVE", "COMPLETED", "PAID", "ACCEPTED", "SUCCESS"].includes(norm)) {
+    styles = "bg-[#EDF7F2] text-[#16865B] border-[#C7E8D8]";
+  } else if (["PENDING", "PAST_DUE", "PARTIALLY_PAID", "SURCHARGE", "PAUSED", "UNMATCHED"].includes(norm)) {
+    styles = "bg-[#FDF8ED] text-[#C58A24] border-[#F6E2B8]";
   } else if (["CANCELLED", "EXPIRED", "FAILED", "VOID", "OVERDUE", "ARCHIVED", "INACTIVE", "REJECTED"].includes(norm)) {
-    styles = "bg-rose-50 text-rose-700 border-rose-200";
+    styles = "bg-[#FDEDED] text-[#D14343] border-[#F8C6C6]";
+  } else if (["TRIALING", "ISSUED", "PROCESSING", "SENT", "MATCHED"].includes(norm)) {
+    styles = "bg-[#EEF4FC] text-[#3978C8] border-[#C8DEF6]";
   } else if (["DRAFT"].includes(norm)) {
-    styles = "bg-slate-100 text-slate-600 border-slate-200";
+    styles = "bg-[#F1F5F9] text-[#64748B] border-[#E5EAF1]";
   }
+
+  // Format label for display (e.g. PARTIALLY_PAID -> Partially Paid)
+  const displayLabel = status
+    ? status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+    : "—";
 
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border tracking-wide uppercase",
+        "inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-medium border leading-none tracking-normal shrink-0",
         styles,
         className
       )}
     >
-      <span className="w-1.5 h-1.5 rounded-full mr-1.5 bg-current opacity-70" />
-      {status}
+      <span className="w-1.5 h-1.5 rounded-full mr-1.5 bg-current opacity-80 shrink-0" />
+      <span>{displayLabel}</span>
     </span>
   );
 }

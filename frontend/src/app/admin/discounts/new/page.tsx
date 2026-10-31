@@ -123,214 +123,182 @@ export default function CreateDiscountPage() {
   return (
     <DashboardShell>
       <PageHeader
-        title="Create New Discount Rule"
-        description="Set up promotional codes, percentage discounts, or fixed deductions"
-      >
-        <Link
-          href="/admin/discounts"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition"
-        >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Discounts
-        </Link>
-      </PageHeader>
+        title="Create Discount Rule"
+        description="Configure promotional codes, percentage discounts, or fixed deductions"
+        actions={
+          <Link
+            href="/admin/discounts"
+            className="inline-flex items-center px-3 py-1.5 border border-border rounded-btn text-[13px] font-medium text-text-primary bg-surface-card hover:bg-surface-canvas transition-colors shadow-xs"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+            Back to Discounts
+          </Link>
+        }
+      />
 
-      <div className="max-w-3xl bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
+      <div className="max-w-3xl bg-surface-card rounded-card border border-border p-6 shadow-xs">
         {error && (
-          <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 text-xs">
+          <div className="mb-5 p-3 rounded-btn bg-status-danger/10 border border-status-danger/20 text-[12px] text-status-danger font-medium flex items-center">
             <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Discount Code <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Tag className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Information */}
+          <div>
+            <h3 className="text-[14px] font-semibold text-text-primary mb-3 pb-2 border-b border-border">
+              Basic Rule Information
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Discount Code *
+                </label>
+                <div className="relative">
+                  <Tag className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. LAUNCH20, BLACKFRIDAY"
+                    value={formData.code}
+                    onChange={(e) =>
+                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
+                    }
+                    className="w-full pl-9 pr-3.5 py-2 text-[13px] font-mono font-medium uppercase border border-border rounded-input bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Discount Title *
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. LAUNCH20, EARLYBIRD, BLACKFRIDAY"
-                  value={formData.code}
-                  onChange={(e) =>
-                    setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                  }
-                  className="w-full pl-9 pr-3.5 py-2.5 text-xs font-mono font-bold uppercase border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500"
+                  placeholder="e.g. Early Adopter 20% Off"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full text-[13px] border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
                 />
               </div>
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Discount Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Launch Special 20% Off"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3.5 py-2.5 focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
           </div>
 
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <label className="block text-xs font-semibold text-slate-700 mb-2">Discount Type & Value</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Value and Mechanics */}
+          <div>
+            <h3 className="text-[14px] font-semibold text-text-primary mb-3 pb-2 border-b border-border">
+              Deduction Mechanics
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Discount Type
+                </label>
                 <select
                   value={formData.discountType}
                   onChange={(e) =>
                     setFormData({ ...formData, discountType: e.target.value as DiscountType })
                   }
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-[13px] border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
                 >
-                  <option value={DiscountType.PERCENTAGE}>Percentage (%)</option>
-                  <option value={DiscountType.FIXED_AMOUNT}>Fixed Amount (₹)</option>
+                  <option value={DiscountType.PERCENTAGE}>Percentage (%) Deduction</option>
+                  <option value={DiscountType.FIXED_AMOUNT}>Fixed Amount (₹) Deduction</option>
                 </select>
               </div>
 
               <div>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  {formData.discountType === DiscountType.PERCENTAGE
+                    ? "Percentage Value (%) *"
+                    : "Fixed Amount (₹) *"}
+                </label>
                 {formData.discountType === DiscountType.PERCENTAGE ? (
                   <div className="relative">
                     <input
                       type="number"
-                      step="0.5"
+                      step="0.01"
                       min="0.1"
                       max="100"
+                      required
                       value={formData.percentValue}
                       onChange={(e) => setFormData({ ...formData, percentValue: e.target.value })}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
-                      placeholder="e.g. 20"
+                      className="w-full text-[13px] font-mono border border-border rounded-input px-3.5 py-2 pr-8 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                      % OFF
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-text-muted">
+                      %
                     </span>
                   </div>
                 ) : (
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-text-muted">
                       ₹
                     </span>
                     <input
                       type="number"
-                      step="1"
+                      step="0.01"
                       min="1"
+                      required
                       value={formData.fixedAmountRupees}
-                      onChange={(e) =>
-                        setFormData({ ...formData, fixedAmountRupees: e.target.value })
-                      }
-                      className="w-full text-xs pl-7 pr-3 py-2 border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-brand-500"
-                      placeholder="e.g. 500"
+                      onChange={(e) => setFormData({ ...formData, fixedAmountRupees: e.target.value })}
+                      className="w-full pl-7 pr-3.5 py-2 text-[13px] font-mono border border-border rounded-input bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
                     />
                   </div>
                 )}
               </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full text-[13px] border border-border rounded-input px-3 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full text-[13px] border border-border rounded-input px-3 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Total Redemption Limit
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Unlimited"
+                  value={formData.maxRedemptions}
+                  onChange={(e) => setFormData({ ...formData, maxRedemptions: e.target.value })}
+                  className="w-full text-[13px] border border-border rounded-input px-3 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Start Date</label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">End Date (Expiry)</label>
-              <input
-                type="date"
-                value={formData.endDate}
-                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Max Redemptions</label>
-              <input
-                type="number"
-                placeholder="Optional (e.g. 100)"
-                value={formData.maxRedemptions}
-                onChange={(e) => setFormData({ ...formData, maxRedemptions: e.target.value })}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2"
-              />
-            </div>
-          </div>
-
-          {/* Advanced Rules: Scope, Min Qty, Recurring Cycles, Caps */}
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-4">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Eligibility, Minimum Quantity & Recurring Billing Rules
+          {/* Limits and Constraints */}
+          <div>
+            <h3 className="text-[14px] font-semibold text-text-primary mb-3 pb-2 border-b border-border">
+              Eligibility & Limits
             </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Discount Scope
-                </label>
-                <select
-                  value={formData.scope}
-                  onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
-                >
-                  <option value="SUBSCRIPTION">SUBSCRIPTION (Entire Invoice)</option>
-                  <option value="PRODUCT">PRODUCT (Selected Items Only)</option>
-                  <option value="PLAN">PLAN (Plan-wide)</option>
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Product scope applies discount only to eligible item lines.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Minimum Quantity (Seats/Units)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 10 seats"
-                  value={formData.minQuantity}
-                  onChange={(e) => setFormData({ ...formData, minQuantity: e.target.value })}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Counts only eligible items for product scope discounts.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Recurring Billing Cycles
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 3 cycles"
-                  value={formData.recurringCycleCount}
-                  onChange={(e) => setFormData({ ...formData, recurringCycleCount: e.target.value })}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Auto-applies for N cycles (e.g. 3 cycles, stops at 4th).
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Minimum Order Amount (₹)
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Minimum Order (₹)
                 </label>
                 <input
                   type="number"
@@ -339,13 +307,13 @@ export default function CreateDiscountPage() {
                   placeholder="e.g. 2000"
                   value={formData.minOrderAmountRupees}
                   onChange={(e) => setFormData({ ...formData, minOrderAmountRupees: e.target.value })}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-[13px] border border-border rounded-input px-3 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Maximum Discount Cap (₹)
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Max Cap Amount (₹)
                 </label>
                 <input
                   type="number"
@@ -354,13 +322,13 @@ export default function CreateDiscountPage() {
                   placeholder="e.g. 1000"
                   value={formData.maxDiscountAmountRupees}
                   onChange={(e) => setFormData({ ...formData, maxDiscountAmountRupees: e.target.value })}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-[13px] border border-border rounded-input px-3 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Max Redemptions Per Customer
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Per-Customer Limit
                 </label>
                 <input
                   type="number"
@@ -368,76 +336,81 @@ export default function CreateDiscountPage() {
                   placeholder="e.g. 1 per customer"
                   value={formData.maxRedemptionsPerCustomer}
                   onChange={(e) => setFormData({ ...formData, maxRedemptionsPerCustomer: e.target.value })}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-[13px] border border-border rounded-input px-3 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
                 />
+              </div>
+            </div>
+
+            {/* Product Eligibility */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[12px] font-medium text-text-primary">
+                  Product Specificity (Optional)
+                </label>
+                <span className="text-[11px] text-text-muted">
+                  {selectedProductIds.length === 0
+                    ? "Applies across all products"
+                    : `${selectedProductIds.length} products restricted`}
+                </span>
+              </div>
+
+              <div className="border border-border rounded-input p-2 max-h-36 overflow-y-auto space-y-1 bg-surface-canvas">
+                {products.map((prod) => {
+                  const selected = selectedProductIds.includes(prod.id);
+                  return (
+                    <div
+                      key={prod.id}
+                      onClick={() => toggleProduct(prod.id)}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-btn cursor-pointer text-[12px] transition-colors ${
+                        selected
+                          ? "bg-surface-card text-text-primary font-medium border border-primary-accent/40 shadow-xs"
+                          : "hover:bg-surface-card/60 text-text-secondary"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        {selected ? (
+                          <CheckSquare className="w-3.5 h-3.5 text-primary-accent shrink-0" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                        )}
+                        <span>{prod.name}</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-text-muted">({prod.sku})</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          {/* Product Eligibility */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-slate-700">
-                Eligible Products (Optional)
-              </label>
-              <span className="text-[11px] text-slate-400">
-                {selectedProductIds.length === 0
-                  ? "Applies to all products"
-                  : `${selectedProductIds.length} products selected`}
+          <div className="pt-2">
+            <label className="flex items-center space-x-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="w-4 h-4 rounded text-primary-accent border-border focus:ring-primary-accent"
+              />
+              <span className="text-[13px] font-medium text-text-primary">
+                Active promotional code (immediately redeemable)
               </span>
-            </div>
-
-            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-y-auto space-y-1">
-              {products.map((prod) => {
-                const selected = selectedProductIds.includes(prod.id);
-                return (
-                  <div
-                    key={prod.id}
-                    onClick={() => toggleProduct(prod.id)}
-                    className={`flex items-center space-x-2 px-2.5 py-1.5 rounded cursor-pointer text-xs transition ${
-                      selected ? "bg-brand-50 text-brand-900 font-medium" : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    {selected ? (
-                      <CheckSquare className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                    ) : (
-                      <Square className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-                    )}
-                    <span>{prod.name}</span>
-                    <span className="text-[10px] font-mono text-slate-400">({prod.sku})</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 pt-2">
-            <input
-              type="checkbox"
-              id="discActive"
-              checked={formData.isActive}
-              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-            />
-            <label htmlFor="discActive" className="text-xs font-medium text-slate-700">
-              Active promotional discount
             </label>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+          <div className="pt-4 border-t border-border flex items-center justify-end space-x-2">
             <Link
               href="/admin/discounts"
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              className="px-4 py-2 text-[12px] font-medium text-text-secondary hover:text-text-primary"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 text-[12px] font-medium rounded-btn text-white bg-primary-accent hover:bg-primary-hover disabled:opacity-50 transition-colors shadow-xs"
             >
-              <Save className="w-4 h-4 mr-1.5" />
-              {saving ? "Saving Discount..." : "Save Discount"}
+              <Save className="w-3.5 h-3.5 mr-1.5" />
+              {saving ? "Saving..." : "Create Discount Rule"}
             </button>
           </div>
         </form>

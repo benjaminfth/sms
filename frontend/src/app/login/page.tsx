@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { Sparkles, ArrowRight, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { ArrowRight, ShieldCheck, UserCheck, Users } from "lucide-react";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -33,31 +33,34 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 selection:bg-[#315CF5]/10">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="mx-auto w-12 h-12 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shadow-lg">
-          <Sparkles className="w-6 h-6" />
+        {/* Brightloop Brand Mark */}
+        <div className="mx-auto w-10 h-10 rounded-[8px] bg-[#315CF5] flex items-center justify-center text-white shadow-xs">
+          <div className="w-4 h-4 border-2 border-white rounded-[3px] rotate-45 flex items-center justify-center">
+            <div className="w-1.5 h-1.5 bg-white rounded-full" />
+          </div>
         </div>
-        <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="mt-4 text-[26px] font-semibold text-[#172033] tracking-tight">
           Sign in to Brightloop SMS
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
+        </h1>
+        <p className="mt-1 text-[13px] text-[#64748B]">
           Subscription Management & Recurring Billing Platform
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-slate-200/80">
+      <div className="mt-7 sm:mx-auto sm:w-full sm:max-w-[420px]">
+        <div className="bg-white py-7 px-6 sm:px-8 rounded-[12px] border border-[#E5EAF1] shadow-xs">
           {error && (
-            <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600 font-medium">
+            <div className="mb-5 p-3 rounded-[8px] bg-[#FDEDED] border border-[#F8C6C6] text-[12px] text-[#D14343] font-medium">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Email Address
+              <label className="block text-[12px] font-medium text-[#172033] mb-1.5">
+                Work Email
               </label>
               <input
                 type="email"
@@ -65,80 +68,95 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@brightloop.demo"
-                className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition"
+                className="w-full px-3.5 py-2.5 bg-white border border-[#E5EAF1] rounded-[8px] text-[13px] text-[#172033] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#315CF5] focus:ring-1 focus:ring-[#315CF5] transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[12px] font-medium text-[#172033]">
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-[12px] font-medium text-[#315CF5] hover:text-[#2549D8] hover:underline transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition"
+                className="w-full px-3.5 py-2.5 bg-white border border-[#E5EAF1] rounded-[8px] text-[13px] text-[#172033] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#315CF5] focus:ring-1 focus:ring-[#315CF5] transition-colors font-mono tracking-wider"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 disabled:opacity-50 transition"
+              className="w-full mt-2 flex justify-center items-center py-2.5 px-4 rounded-[8px] text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] focus:outline-none focus:ring-2 focus:ring-[#315CF5]/20 disabled:opacity-50 transition-colors shadow-xs"
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <>
-                  <span>Sign In</span>
-                  <ArrowRight className="ml-2 w-4 h-4" />
-                </>
+                <div className="flex items-center">
+                  <span>Sign In to Console</span>
+                  <ArrowRight className="ml-2 w-3.5 h-3.5" />
+                </div>
               )}
             </button>
           </form>
 
-          {/* Demo Quick-Login Presets */}
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
-              Quick Demo Login:
-            </p>
+          {/* Quick Demo Accounts */}
+          <div className="mt-6 pt-5 border-t border-[#E5EAF1]">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-[#94A3B8]">
+                Quick Demo Access
+              </span>
+              <span className="text-[11px] text-[#94A3B8]">One-click populate</span>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => fillDemo("admin@brightloop.demo", "Brightloop!2026")}
-                className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center space-x-1 transition"
+                className="px-2.5 py-2 text-[12px] font-medium rounded-[8px] border border-[#E5EAF1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#172033] flex items-center justify-center space-x-1.5 transition-colors"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
+                <ShieldCheck className="w-3.5 h-3.5 text-[#315CF5]" />
                 <span>Admin</span>
               </button>
               <button
                 type="button"
                 onClick={() => fillDemo("staff@brightloop.demo", "Brightloop!2026")}
-                className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center space-x-1 transition"
+                className="px-2.5 py-2 text-[12px] font-medium rounded-[8px] border border-[#E5EAF1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#172033] flex items-center justify-center space-x-1.5 transition-colors"
               >
-                <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                <UserCheck className="w-3.5 h-3.5 text-[#3978C8]" />
                 <span>Staff</span>
               </button>
               <button
                 type="button"
                 onClick={() => fillDemo("customer@brightloop.demo", "Brightloop!2026")}
-                className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center space-x-1 transition"
+                className="px-2.5 py-2 text-[12px] font-medium rounded-[8px] border border-[#E5EAF1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#172033] flex items-center justify-center space-x-1.5 transition-colors"
               >
-                <Users className="w-3.5 h-3.5 text-emerald-600" />
+                <Users className="w-3.5 h-3.5 text-[#16865B]" />
                 <span>Customer</span>
               </button>
             </div>
           </div>
 
-          <div className="mt-6 text-center text-xs text-slate-500">
+          <div className="mt-6 pt-4 border-t border-[#E5EAF1] text-center text-[12px] text-[#64748B]">
             Need an enterprise account?{" "}
-            <Link href="/register" className="font-semibold text-brand-600 hover:text-brand-500">
+            <Link href="/register" className="font-medium text-[#315CF5] hover:text-[#2549D8] hover:underline transition-colors">
               Register here
             </Link>
           </div>
         </div>
+
+        <p className="mt-6 text-center text-[11px] text-[#94A3B8]">
+          Brightloop SMS v2.4 • Bank-grade 256-bit SSL encryption
+        </p>
       </div>
     </div>
   );

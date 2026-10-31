@@ -3,14 +3,13 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { MoneyDisplay } from "@/components/shared/MoneyDisplay";
+import { formatDate } from "@/lib/utils";
 import {
   CreditCard,
   CheckCircle2,
-  AlertTriangle,
-  Clock,
-  ArrowUpRight,
-  Receipt,
-  ShieldCheck,
+  Calendar,
 } from "lucide-react";
 
 export default function CustomerPaymentsPage() {
@@ -34,117 +33,67 @@ export default function CustomerPaymentsPage() {
     loadPayments();
   }, []);
 
-  const formatINR = (minor?: string | number | bigint) => {
-    if (minor === undefined || minor === null) return "₹0.00";
-    const val = typeof minor === "string" ? parseInt(minor, 10) : Number(minor);
-    return (val / 100).toLocaleString("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 2,
-    });
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-            Completed
-          </span>
-        );
-      case "FAILED":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            <AlertTriangle className="w-3.5 h-3.5 mr-1" />
-            Failed
-          </span>
-        );
-      case "REFUNDED":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-            Refunded
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            <Clock className="w-3.5 h-3.5 mr-1" />
-            Pending
-          </span>
-        );
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Payment History</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Review your transaction logs, payment receipts, and allocated invoices.
+      <div className="pb-5 border-b border-[#E5EAF1]">
+        <h1 className="text-[26px] font-semibold tracking-tight text-[#172033] leading-tight">
+          Payment History
+        </h1>
+        <p className="mt-1 text-[13px] text-[#64748B]">
+          Cleared payment receipts and transaction records for your subscription account.
         </p>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center min-h-[300px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="py-20 text-center text-[#94A3B8]">
+          <div className="inline-block animate-spin rounded-full h-7 w-7 border-2 border-[#315CF5] border-t-transparent" />
+          <p className="mt-2 text-[12px] text-[#64748B]">Loading payment ledger...</p>
         </div>
       ) : payments.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-gray-900">No payment records</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            You do not have any recorded transactions yet.
+        <div className="bg-white rounded-[10px] border border-[#E5EAF1] p-12 text-center shadow-xs">
+          <div className="w-10 h-10 rounded-[8px] bg-[#F8FAFC] border border-[#E5EAF1] flex items-center justify-center mx-auto text-[#94A3B8] mb-3">
+            <CreditCard className="w-5 h-5" />
+          </div>
+          <h3 className="text-[15px] font-semibold text-[#172033]">No payments recorded</h3>
+          <p className="text-[13px] text-[#64748B] mt-1 max-w-sm mx-auto">
+            Cleared receipts from completed online transactions or bank deposits will appear here.
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-[10px] border border-[#E5EAF1] shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50/75 border-b border-gray-200 text-xs font-semibold uppercase text-gray-500 tracking-wider">
-                <tr>
-                  <th className="py-3.5 px-4">Transaction Ref</th>
-                  <th className="py-3.5 px-4">Date & Time</th>
-                  <th className="py-3.5 px-4">Method</th>
-                  <th className="py-3.5 px-4">Allocated To</th>
-                  <th className="py-3.5 px-4 text-right">Amount</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E5EAF1] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                  <th className="py-2.5 px-4">Payment Reference</th>
+                  <th className="py-2.5 px-4">Date</th>
+                  <th className="py-2.5 px-4">Payment Method</th>
+                  <th className="py-2.5 px-4 text-right">Amount Paid</th>
+                  <th className="py-2.5 px-4 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {payments.map((p) => {
-                  const linkedInvoice = p.allocations?.[0]?.invoice;
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-4 px-4 font-mono font-semibold text-xs text-gray-900">
-                        {p.paymentReference}
-                      </td>
-                      <td className="py-4 px-4 text-gray-600 text-xs">
-                        {p.paidAt ? new Date(p.paidAt).toLocaleString() : "N/A"}
-                      </td>
-                      <td className="py-4 px-4 text-gray-700 text-xs font-medium">
+              <tbody className="divide-y divide-[#E5EAF1]">
+                {payments.map((p) => (
+                  <tr key={p.id} className="hover:bg-[#F8FAFC] transition-colors">
+                    <td className="py-3 px-4 font-mono font-medium text-[#172033]">
+                      {p.paymentReference}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[#64748B]">
+                      {formatDate(p.paidAt || p.createdAt)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="text-[11px] font-mono uppercase bg-[#F8FAFC] text-[#64748B] px-2 py-0.5 rounded-[4px] border border-[#E5EAF1]">
                         {p.paymentMethod}
-                      </td>
-                      <td className="py-4 px-4 text-xs">
-                        {linkedInvoice ? (
-                          <Link
-                            href={`/portal/invoices/${linkedInvoice.id}`}
-                            className="inline-flex items-center font-medium text-primary hover:underline"
-                          >
-                            <Receipt className="w-3.5 h-3.5 mr-1" />
-                            {linkedInvoice.invoiceNumber}
-                          </Link>
-                        ) : (
-                          <span className="text-gray-400">Unallocated</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-4 text-right font-bold text-gray-900">
-                        {formatINR(p.amountMinor)}
-                      </td>
-                      <td className="py-4 px-4 text-center">{getStatusBadge(p.status)}</td>
-                    </tr>
-                  );
-                })}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-medium text-[#16865B]">
+                      <MoneyDisplay amountMinor={p.amountMinor} currency={p.currency} />
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <StatusBadge status={p.status} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

@@ -39,8 +39,8 @@ export function PasswordRequirementsChecklist({
   ];
 
   return (
-    <div className="mt-2.5 p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1.5">
-      <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">
+    <div className="mt-2.5 p-3 rounded-btn bg-surface-canvas border border-border space-y-1.5">
+      <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider mb-1">
         Password Requirements
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -50,25 +50,25 @@ export function PasswordRequirementsChecklist({
           return (
             <div
               key={item.id}
-              className={`flex items-center text-xs transition-colors duration-150 ${
+              className={`flex items-center text-[12px] transition-colors duration-150 ${
                 item.satisfied
-                  ? "text-emerald-600 font-medium"
+                  ? "text-status-success font-medium"
                   : isError
-                  ? "text-rose-600 font-medium"
-                  : "text-slate-500"
+                  ? "text-status-danger font-medium"
+                  : "text-text-secondary"
               }`}
             >
               {item.satisfied ? (
-                <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center mr-1.5 shrink-0 text-emerald-700">
+                <div className="w-4 h-4 rounded-full bg-status-success/15 flex items-center justify-center mr-1.5 shrink-0 text-status-success">
                   <Check className="w-2.5 h-2.5 stroke-[3]" />
                 </div>
               ) : isError ? (
-                <div className="w-4 h-4 rounded-full bg-rose-100 flex items-center justify-center mr-1.5 shrink-0 text-rose-700">
+                <div className="w-4 h-4 rounded-full bg-status-danger/15 flex items-center justify-center mr-1.5 shrink-0 text-status-danger">
                   <X className="w-2.5 h-2.5 stroke-[3]" />
                 </div>
               ) : (
-                <div className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center mr-1.5 shrink-0 text-slate-400">
-                  <Circle className="w-2 h-2 fill-slate-400" />
+                <div className="w-4 h-4 rounded-full bg-border flex items-center justify-center mr-1.5 shrink-0 text-text-muted">
+                  <Circle className="w-2 h-2 fill-text-muted" />
                 </div>
               )}
               <span>{item.label}</span>
