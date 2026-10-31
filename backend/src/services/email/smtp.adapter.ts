@@ -67,7 +67,7 @@ export class SmtpEmailAdapter implements IEmailAdapter {
         html: options.html,
       });
 
-      console.log(`[SMTP SUCCES] Transmitted email to ${options.to}. Message ID: ${info.messageId}`);
+      console.log(`[SMP SUCCES] Transmitted email to ${options.to}. Message ID: ${info.messageId}`);
       return true;
     } catch (err: any) {
       console.error(`[SMTP ERROR] Failed to send email to ${options.to}:`, err.message || err);
