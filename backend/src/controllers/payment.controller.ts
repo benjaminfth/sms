@@ -52,9 +52,11 @@ export class PaymentController {
 
   static async recordPayment(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // If customer, customerId must match
+      // If customer, customerId must match and cannot set arbitrary status or internal notes
       if (req.user?.role === Role.CUSTOMER) {
         assertCustomerOwnership(req, req.body.customerId);
+        req.body.status = PaymentStatus.PENDING;
+        req.body.internalNotes = undefined;
       }
 
       const payment = await PaymentService.recordPayment(req.body, req.user?.userId);

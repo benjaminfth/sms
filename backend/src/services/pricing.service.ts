@@ -1,3 +1,4 @@
+import { prisma } from "../database/prisma";
 import { ProductService } from "./product.service";
 import { TaxCalculationService } from "./tax-calculation.service";
 import { DiscountCalculationService } from "./discount-calculation.service";
@@ -18,6 +19,7 @@ export interface PricingEngineItemInput {
 export interface PricingEngineInput {
   items: PricingEngineItemInput[];
   discountCode?: string | null;
+  subscriptionId?: string | null;
   customerId?: string | null;
   currency?: string;
   isInclusiveTax?: boolean;
@@ -82,23 +84,51 @@ export class PricingService {
       });
     }
 
-    // 2. Resolve discount (if code provided)
+    // 2. Resolve discount (explicit code OR auto-attached subscription recurring discount)
+    let discountCodeToUse = input.discountCode?.trim() || null;
+
+    if (!discountCodeToUse && input.subscriptionId) {
+      const activeAttachment = await prisma.discountApplication.findFirst({
+        where: {
+          subscriptionId: input.subscriptionId,
+          invoiceId: null,
+        },
+        include: { discount: true },
+        orderBy: { appliedAt: "desc" },
+      });
+
+      if (activeAttachment && activeAttachment.discount) {
+        discountCodeToUse = activeAttachment.discount.code;
+      }
+    }
+
     let discountTotalMinor = 0n;
     const discountBreakdown: PricingCalculationResult["discountBreakdown"] = [];
+    let eligibleItemIds: string[] | undefined = undefined;
 
-    if (input.discountCode && input.discountCode.trim()) {
+    if (discountCodeToUse) {
       const discountValidation =
         await DiscountCalculationService.validateAndCalculateDiscount(
-          input.discountCode,
+          discountCodeToUse,
           {
             customerId: input.customerId || undefined,
+            subscriptionId: input.subscriptionId || undefined,
             productIds,
+            items: resolvedItems
+              .filter((it) => Boolean(it.productId))
+              .map((it) => ({
+                productId: it.productId!,
+                productVariantId: it.productVariantId,
+                quantity: it.quantity,
+                unitPriceMinor: it.unitPriceMinor,
+              })),
             subtotalMinor,
           }
         );
 
       if (discountValidation.valid && discountValidation.discount) {
         discountTotalMinor = discountValidation.amountDeductedMinor;
+        eligibleItemIds = discountValidation.eligibleItemIds;
         discountBreakdown.push({
           discountId: discountValidation.discount.id,
           code: discountValidation.discount.code,
@@ -113,24 +143,54 @@ export class PricingService {
     const taxableAmountMinor =
       subtotalMinor > discountTotalMinor ? subtotalMinor - discountTotalMinor : 0n;
 
-    // Distribute discount proportionally across line items for accurate item taxes
-    let remainingDiscountToDistribute = discountTotalMinor;
-    for (let i = 0; i < resolvedItems.length; i++) {
-      const item = resolvedItems[i];
-      if (!item) continue;
-      const itemSubtotal = BigInt(item.subtotalMinor);
-      let itemDiscount = 0n;
+    // Distribute discount across eligible items
+    if (discountTotalMinor > 0n) {
+      if (eligibleItemIds && eligibleItemIds.length > 0) {
+        // Product-specific discount: distribute ONLY across eligible items
+        const eligibleItems = resolvedItems.filter(
+          (it) => it.productId && eligibleItemIds!.includes(it.productId)
+        );
+        const eligibleSubtotal = eligibleItems.reduce(
+          (sum, it) => sum + BigInt(it.subtotalMinor),
+          0n
+        );
 
-      if (subtotalMinor > 0n && discountTotalMinor > 0n) {
-        if (i === resolvedItems.length - 1) {
-          itemDiscount = remainingDiscountToDistribute;
-        } else {
-          itemDiscount = (itemSubtotal * discountTotalMinor) / subtotalMinor;
-          remainingDiscountToDistribute -= itemDiscount;
+        let remainingDiscount = discountTotalMinor;
+        for (let i = 0; i < eligibleItems.length; i++) {
+          const item = eligibleItems[i]!;
+          const itemSubtotal = BigInt(item.subtotalMinor);
+          let itemDiscount = 0n;
+
+          if (eligibleSubtotal > 0n) {
+            if (i === eligibleItems.length - 1) {
+              itemDiscount = remainingDiscount;
+            } else {
+              itemDiscount = (itemSubtotal * discountTotalMinor) / eligibleSubtotal;
+              remainingDiscount -= itemDiscount;
+            }
+          }
+          item.discountMinor = itemDiscount.toString();
+        }
+      } else {
+        // Subscription-wide discount: distribute proportionally across all items
+        let remainingDiscountToDistribute = discountTotalMinor;
+        for (let i = 0; i < resolvedItems.length; i++) {
+          const item = resolvedItems[i]!;
+          const itemSubtotal = BigInt(item.subtotalMinor);
+          let itemDiscount = 0n;
+
+          if (subtotalMinor > 0n) {
+            if (i === resolvedItems.length - 1) {
+              itemDiscount = remainingDiscountToDistribute;
+            } else {
+              itemDiscount = (itemSubtotal * discountTotalMinor) / subtotalMinor;
+              remainingDiscountToDistribute -= itemDiscount;
+            }
+          }
+
+          item.discountMinor = itemDiscount.toString();
         }
       }
-
-      item.discountMinor = itemDiscount.toString();
     }
 
     // 4. Calculate line-item product taxes

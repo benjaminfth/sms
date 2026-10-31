@@ -22,6 +22,8 @@ export default function RecordPaymentPage() {
     status: PaymentStatus.COMPLETED,
     paymentReference: "",
     notes: "",
+    internalNotes: "",
+    customerNotes: "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -104,7 +106,8 @@ export default function RecordPaymentPage() {
         status: formData.status,
         paymentReference: formData.paymentReference.trim() || undefined,
         invoiceId: formData.invoiceId || undefined,
-        notes: formData.notes.trim() || undefined,
+        internalNotes: formData.internalNotes.trim() || undefined,
+        customerNotes: formData.customerNotes.trim() || undefined,
       });
 
       if (res.success) {
@@ -260,17 +263,42 @@ export default function RecordPaymentPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Internal Payment Notes / Bank Ref
-            </label>
-            <textarea
-              rows={2}
-              placeholder="e.g. UTR # 42398492834, HDFC corporate account transfer"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"
-            />
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700">
+                  Internal Staff Note (Confidential)
+                </label>
+                <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded font-medium">
+                  Internal only · Never shown to customer
+                </span>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="e.g. UTR # 42398492834, HDFC corporate account reconciliation"
+                value={formData.internalNotes}
+                onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })}
+                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700">
+                  Customer-Visible Note (Optional)
+                </label>
+                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-medium">
+                  Visible on Customer Portal receipt
+                </span>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="e.g. Payment received through HDFC bank transfer for October subscription."
+                value={formData.customerNotes}
+                onChange={(e) => setFormData({ ...formData, customerNotes: e.target.value })}
+                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">

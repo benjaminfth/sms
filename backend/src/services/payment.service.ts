@@ -14,6 +14,48 @@ import { PaginationParams } from "../utils/response";
 import { InvoiceSettlementService } from "./invoice-settlement.service";
 import crypto from "crypto";
 
+export function formatPaymentNotes(
+  internalNotes?: string | null,
+  customerNotes?: string | null,
+  legacyNotes?: string | null
+): string | null {
+  if (internalNotes !== undefined || customerNotes !== undefined) {
+    return JSON.stringify({
+      internal: internalNotes || null,
+      customer: customerNotes || null,
+    });
+  }
+  return legacyNotes || null;
+}
+
+export function parsePaymentNotes(notesStr?: string | null): {
+  internalNotes: string | null;
+  customerNotes: string | null;
+} {
+  if (!notesStr) {
+    return { internalNotes: null, customerNotes: null };
+  }
+  try {
+    const parsed = JSON.parse(notesStr);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      ("internal" in parsed || "customer" in parsed)
+    ) {
+      return {
+        internalNotes: parsed.internal || null,
+        customerNotes: parsed.customer || null,
+      };
+    }
+  } catch {
+    // plain text legacy note - treated as internal note for safety
+  }
+  return {
+    internalNotes: notesStr,
+    customerNotes: null,
+  };
+}
+
 export class PaymentService {
   /**
    * Record a payment (manual offline or processed via gateway).
@@ -27,6 +69,8 @@ export class PaymentService {
       paymentMethod: PaymentMethod;
       status?: PaymentStatus;
       notes?: string | null;
+      internalNotes?: string | null;
+      customerNotes?: string | null;
       paymentReference?: string;
       invoiceId?: string | null;
       allocatedAmountMinor?: string | bigint;
@@ -64,6 +108,7 @@ export class PaymentService {
     }
 
     const status = data.status || PaymentStatus.COMPLETED;
+    const notesToStore = formatPaymentNotes(data.internalNotes, data.customerNotes, data.notes);
 
     return prisma.$transaction(async (tx) => {
       // 1. Create payment record
@@ -75,7 +120,7 @@ export class PaymentService {
           currency: data.currency || customer.currency || "INR",
           paymentMethod: data.paymentMethod,
           status,
-          notes: data.notes || null,
+          notes: notesToStore,
           paidAt: new Date(),
         },
       });
@@ -162,7 +207,13 @@ export class PaymentService {
         },
       });
 
-      return fullPayment;
+      if (!fullPayment) return null;
+      const parsed = parsePaymentNotes(fullPayment.notes);
+      return {
+        ...fullPayment,
+        internalNotes: parsed.internalNotes,
+        customerNotes: parsed.customerNotes,
+      };
     });
   }
 
@@ -207,7 +258,7 @@ export class PaymentService {
       if (pagination.endDate) where.paidAt.lte = new Date(pagination.endDate);
     }
 
-    const [total, payments] = await Promise.all([
+    const [total, rawPayments] = await Promise.all([
       prisma.payment.count({ where }),
       prisma.payment.findMany({
         where,
@@ -228,6 +279,15 @@ export class PaymentService {
         },
       }),
     ]);
+
+    const payments = rawPayments.map((p) => {
+      const parsed = parsePaymentNotes(p.notes);
+      return {
+        ...p,
+        internalNotes: parsed.internalNotes,
+        customerNotes: parsed.customerNotes,
+      };
+    });
 
     const paginationMeta: PaginationParams = {
       page: pagination.page,
@@ -269,9 +329,13 @@ export class PaymentService {
     const unallocatedAmountMinor =
       payment.amountMinor > totalAllocated ? payment.amountMinor - totalAllocated : 0n;
 
+    const parsed = parsePaymentNotes(payment.notes);
+
     return {
       ...payment,
       unallocatedAmountMinor,
+      internalNotes: parsed.internalNotes,
+      customerNotes: parsed.customerNotes,
     };
   }
 

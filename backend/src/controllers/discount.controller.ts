@@ -100,10 +100,12 @@ export class DiscountController {
 
   static async validateDiscount(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { code, customerId, productIds, subtotalMinor } = req.body;
+      const { code, customerId, subscriptionId, productIds, items, subtotalMinor } = req.body;
       const result = await DiscountCalculationService.validateAndCalculateDiscount(code, {
         customerId,
+        subscriptionId,
         productIds,
+        items,
         subtotalMinor: subtotalMinor ? BigInt(subtotalMinor) : 0n,
       });
 
@@ -113,6 +115,23 @@ export class DiscountController {
         discount: result.discount,
         amountDeductedMinor: result.amountDeductedMinor.toString(),
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async attachDiscountToSubscription(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { subscriptionId, discountCode } = req.body;
+      const result = await DiscountService.attachDiscountToSubscription(
+        { subscriptionId, discountCode },
+        req.user?.userId
+      );
+      AppResponse.created(res, result);
     } catch (err) {
       next(err);
     }

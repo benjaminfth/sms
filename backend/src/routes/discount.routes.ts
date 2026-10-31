@@ -42,11 +42,19 @@ router.get(
   DiscountController.getDiscountRedemptions
 );
 
-// Create and update (Admin & Staff)
+// Attach recurring discount to subscription (Admin ONLY)
+router.post(
+  "/attach-subscription",
+  authenticate,
+  requireRole(Role.ADMIN),
+  DiscountController.attachDiscountToSubscription
+);
+
+// Create and update (Admin ONLY — Staff and Customers prohibited)
 router.post(
   "/",
   authenticate,
-  requireRole(Role.ADMIN, Role.STAFF),
+  requireRole(Role.ADMIN),
   validate(createDiscountSchema),
   DiscountController.createDiscount
 );
@@ -54,7 +62,7 @@ router.post(
 router.patch(
   "/:id",
   authenticate,
-  requireRole(Role.ADMIN, Role.STAFF),
+  requireRole(Role.ADMIN),
   validate(updateDiscountSchema),
   DiscountController.updateDiscount
 );
@@ -62,14 +70,14 @@ router.patch(
 router.post(
   "/:id/activate",
   authenticate,
-  requireRole(Role.ADMIN, Role.STAFF),
+  requireRole(Role.ADMIN),
   DiscountController.activateDiscount
 );
 
 router.post(
   "/:id/deactivate",
   authenticate,
-  requireRole(Role.ADMIN, Role.STAFF),
+  requireRole(Role.ADMIN),
   DiscountController.deactivateDiscount
 );
 

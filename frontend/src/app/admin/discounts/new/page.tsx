@@ -21,6 +21,12 @@ export default function CreateDiscountPage() {
     endDate: "",
     maxRedemptions: "",
     isActive: true,
+    scope: "SUBSCRIPTION",
+    minQuantity: "",
+    minOrderAmountRupees: "",
+    maxDiscountAmountRupees: "",
+    recurringCycleCount: "",
+    maxRedemptionsPerCustomer: "",
   });
 
   const [products, setProducts] = useState<ProductDTO[]>([]);
@@ -86,6 +92,20 @@ export default function CreateDiscountPage() {
         maxRedemptions: formData.maxRedemptions ? parseInt(formData.maxRedemptions, 10) : null,
         isActive: formData.isActive,
         productIds: selectedProductIds.length > 0 ? selectedProductIds : undefined,
+        scope: formData.scope,
+        minQuantity: formData.minQuantity ? parseInt(formData.minQuantity, 10) : null,
+        minOrderAmountMinor: formData.minOrderAmountRupees
+          ? String(Math.round(parseFloat(formData.minOrderAmountRupees) * 100))
+          : null,
+        maxDiscountAmountMinor: formData.maxDiscountAmountRupees
+          ? String(Math.round(parseFloat(formData.maxDiscountAmountRupees) * 100))
+          : null,
+        recurringCycleCount: formData.recurringCycleCount
+          ? parseInt(formData.recurringCycleCount, 10)
+          : null,
+        maxRedemptionsPerCustomer: formData.maxRedemptionsPerCustomer
+          ? parseInt(formData.maxRedemptionsPerCustomer, 10)
+          : null,
       });
 
       if (res.success) {
@@ -244,6 +264,113 @@ export default function CreateDiscountPage() {
                 onChange={(e) => setFormData({ ...formData, maxRedemptions: e.target.value })}
                 className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2"
               />
+            </div>
+          </div>
+
+          {/* Advanced Rules: Scope, Min Qty, Recurring Cycles, Caps */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-4">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Eligibility, Minimum Quantity & Recurring Billing Rules
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Discount Scope
+                </label>
+                <select
+                  value={formData.scope}
+                  onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="SUBSCRIPTION">SUBSCRIPTION (Entire Invoice)</option>
+                  <option value="PRODUCT">PRODUCT (Selected Items Only)</option>
+                  <option value="PLAN">PLAN (Plan-wide)</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Product scope applies discount only to eligible item lines.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Minimum Quantity (Seats/Units)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 10 seats"
+                  value={formData.minQuantity}
+                  onChange={(e) => setFormData({ ...formData, minQuantity: e.target.value })}
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Counts only eligible items for product scope discounts.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Recurring Billing Cycles
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 3 cycles"
+                  value={formData.recurringCycleCount}
+                  onChange={(e) => setFormData({ ...formData, recurringCycleCount: e.target.value })}
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Auto-applies for N cycles (e.g. 3 cycles, stops at 4th).
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Minimum Order Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 2000"
+                  value={formData.minOrderAmountRupees}
+                  onChange={(e) => setFormData({ ...formData, minOrderAmountRupees: e.target.value })}
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Maximum Discount Cap (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 1000"
+                  value={formData.maxDiscountAmountRupees}
+                  onChange={(e) => setFormData({ ...formData, maxDiscountAmountRupees: e.target.value })}
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Max Redemptions Per Customer
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 1 per customer"
+                  value={formData.maxRedemptionsPerCustomer}
+                  onChange={(e) => setFormData({ ...formData, maxRedemptionsPerCustomer: e.target.value })}
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
             </div>
           </div>
 

@@ -233,6 +233,12 @@ export const createDiscountSchema = z.object({
   maxRedemptions: z.coerce.number().int().positive().optional().nullable(),
   isActive: z.boolean().default(true),
   productIds: z.array(z.string().uuid("Invalid product ID")).optional(),
+  scope: z.enum(["PRODUCT", "PLAN", "SUBSCRIPTION"]).default("SUBSCRIPTION").optional(),
+  minQuantity: z.coerce.number().int().positive().optional().nullable(),
+  minOrderAmountMinor: minorAmountSchema.optional().nullable(),
+  maxDiscountAmountMinor: minorAmountSchema.optional().nullable(),
+  recurringCycleCount: z.coerce.number().int().positive().optional().nullable(),
+  maxRedemptionsPerCustomer: z.coerce.number().int().positive().optional().nullable(),
 });
 
 export const updateDiscountSchema = z.object({
@@ -244,13 +250,34 @@ export const updateDiscountSchema = z.object({
   maxRedemptions: z.coerce.number().int().positive().optional().nullable(),
   isActive: z.boolean().optional(),
   productIds: z.array(z.string().uuid("Invalid product ID")).optional(),
+  scope: z.enum(["PRODUCT", "PLAN", "SUBSCRIPTION"]).optional(),
+  minQuantity: z.coerce.number().int().positive().optional().nullable(),
+  minOrderAmountMinor: minorAmountSchema.optional().nullable(),
+  maxDiscountAmountMinor: minorAmountSchema.optional().nullable(),
+  recurringCycleCount: z.coerce.number().int().positive().optional().nullable(),
+  maxRedemptionsPerCustomer: z.coerce.number().int().positive().optional().nullable(),
 });
 
 export const validateDiscountSchema = z.object({
   code: z.string().min(1, "Discount code is required").trim().toUpperCase(),
-  customerId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional().nullable(),
+  subscriptionId: z.string().uuid().optional().nullable(),
   productIds: z.array(z.string().uuid()).optional(),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        quantity: z.union([z.string(), z.number()]).default(1),
+        unitPriceMinor: minorAmountSchema.optional(),
+      })
+    )
+    .optional(),
   subtotalMinor: minorAmountSchema.optional(),
+});
+
+export const attachSubscriptionDiscountSchema = z.object({
+  subscriptionId: z.string().uuid("Invalid subscription ID"),
+  discountCode: z.string().min(1, "Discount code is required").trim().toUpperCase(),
 });
 
 // Payment schemas
@@ -261,6 +288,8 @@ export const createPaymentSchema = z.object({
   paymentMethod: z.nativeEnum(PaymentMethod).default(PaymentMethod.CARD),
   status: z.nativeEnum(PaymentStatus).default(PaymentStatus.COMPLETED),
   notes: z.string().optional().nullable(),
+  internalNotes: z.string().optional().nullable(),
+  customerNotes: z.string().optional().nullable(),
   paymentReference: z.string().optional(),
   invoiceId: z.string().uuid().optional().nullable(),
   allocatedAmountMinor: minorAmountSchema.optional(),
@@ -298,7 +327,9 @@ export const calculatePricingSchema = z.object({
   items: z.array(calculatePricingItemSchema).min(1, "At least one item is required for pricing"),
   discountCode: z.string().optional().nullable(),
   customerId: z.string().uuid().optional().nullable(),
+  subscriptionId: z.string().uuid().optional().nullable(),
   currency: z.string().default(DEFAULT_CURRENCY),
+  isInclusiveTax: z.boolean().default(false),
 });
 
 // Dashboard query schema

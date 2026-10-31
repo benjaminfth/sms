@@ -253,10 +253,14 @@ export interface PaymentDTO {
   paymentMethod: PaymentMethod;
   status: PaymentStatus;
   notes?: string | null;
+  internalNotes?: string | null;
+  customerNotes?: string | null;
   paidAt: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type DiscountScope = "PRODUCT" | "PLAN" | "SUBSCRIPTION";
 
 // Discount DTO
 export interface DiscountDTO {
@@ -273,6 +277,12 @@ export interface DiscountDTO {
   createdAt: string;
   updatedAt: string;
   discountProducts?: DiscountProductDTO[];
+  scope?: DiscountScope;
+  minQuantity?: number | null;
+  minOrderAmountMinor?: string | null;
+  maxDiscountAmountMinor?: string | null;
+  recurringCycleCount?: number | null;
+  maxRedemptionsPerCustomer?: number | null;
 }
 
 // Tax DTO

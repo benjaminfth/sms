@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { DiscountDTO, DiscountType } from "@sms/shared";
 import {
   Percent,
@@ -16,9 +17,12 @@ import {
   Edit2,
   Calendar,
   Users,
+  ShieldAlert,
 } from "lucide-react";
 
 export default function DiscountsListPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
   const [discounts, setDiscounts] = useState<DiscountDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -57,15 +61,22 @@ export default function DiscountsListPage() {
     <DashboardShell>
       <PageHeader
         title="Discount & Promotion Management"
-        description="Create promotional codes, percentage discounts, and fixed deductions"
+        description="Configure promotional codes, percentage discounts, minimum quantity rules, and recurring billing cycles"
       >
-        <Link
-          href="/admin/discounts/new"
-          className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          Create New Discount
-        </Link>
+        {isAdmin ? (
+          <Link
+            href="/admin/discounts/new"
+            className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            Create New Discount
+          </Link>
+        ) : (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+            <ShieldAlert className="w-3.5 h-3.5 mr-1 text-amber-600" />
+            Staff View (Admin Required to Create)
+          </span>
+        )}
       </PageHeader>
 
       {/* Filter and Search Bar */}
@@ -156,8 +167,28 @@ export default function DiscountsListPage() {
                         <div className="flex items-center space-x-2">
                           <Tag className="w-3.5 h-3.5 text-brand-500" />
                           <span className="font-mono font-bold text-slate-900">{disc.code}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-medium bg-slate-100 text-slate-600">
+                            {disc.scope || "SUBSCRIPTION"}
+                          </span>
                         </div>
-                        <div className="text-[11px] text-slate-500">{disc.name}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{disc.name}</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {disc.minQuantity && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                              Min: {disc.minQuantity} items
+                            </span>
+                          )}
+                          {disc.recurringCycleCount && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                              {disc.recurringCycleCount} recurring cycles
+                            </span>
+                          )}
+                          {disc.maxDiscountAmountMinor && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                              Cap: ₹{(Number(disc.maxDiscountAmountMinor) / 100).toLocaleString("en-IN")}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700">
@@ -206,7 +237,7 @@ export default function DiscountsListPage() {
                           className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
                         >
                           <Edit2 className="w-3 h-3 mr-1" />
-                          Manage
+                          {isAdmin ? "Manage" : "View"}
                         </Link>
                       </td>
                     </tr>

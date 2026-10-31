@@ -14,6 +14,7 @@ import {
 import { InvoiceSettlementService } from "./invoice-settlement.service";
 import { demoPaymentProvider } from "./demo-payment-provider.service";
 import { createAuditLog } from "./audit.service";
+import { parsePaymentNotes } from "./payment.service";
 
 export class PortalService {
   /**
@@ -120,13 +121,22 @@ export class PortalService {
       }
     }
 
+    const sanitizedRecentPayments = recentPayments.map((p) => {
+      const parsed = parsePaymentNotes(p.notes);
+      return {
+        ...p,
+        notes: parsed.customerNotes || null,
+        customerNotes: parsed.customerNotes || null,
+      };
+    });
+
     return {
       customer,
       activeSubscriptions,
       upcomingBillingDate,
       recentInvoices,
       totalOutstandingBalanceMinor: totalOutstandingMinor.toString(),
-      recentPayments,
+      recentPayments: sanitizedRecentPayments,
     };
   }
 
@@ -412,7 +422,7 @@ export class PortalService {
    * My Payments
    */
   static async getPayments(customerId: string) {
-    return prisma.payment.findMany({
+    const payments = await prisma.payment.findMany({
       where: { customerId },
       orderBy: { paidAt: "desc" },
       include: {
@@ -424,6 +434,15 @@ export class PortalService {
           },
         },
       },
+    });
+
+    return payments.map((p) => {
+      const parsed = parsePaymentNotes(p.notes);
+      return {
+        ...p,
+        notes: parsed.customerNotes || null,
+        customerNotes: parsed.customerNotes || null,
+      };
     });
   }
 
