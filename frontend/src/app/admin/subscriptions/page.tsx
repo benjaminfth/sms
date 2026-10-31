@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
 import { SubscriptionWithDetailsDTO, PaginationMeta, SubscriptionStatus } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, Repeat, Play, Pause, XCircle } from "lucide-react";
+import { Plus, Search, Repeat, Play, Pause, XCircle, Eye } from "lucide-react";
 
 export default function AdminSubscriptionsPage() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDetailsDTO[]>([]);
@@ -20,6 +20,7 @@ export default function AdminSubscriptionsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -59,11 +60,12 @@ export default function AdminSubscriptionsPage() {
   }, [fetchSubscriptions]);
 
   const handleAction = async (id: string, actionType: "activate" | "pause" | "resume" | "cancel") => {
+    setActionError(null);
     try {
       await api.post(`/subscriptions/${id}/${actionType}`);
       fetchSubscriptions();
     } catch (err: any) {
-      alert(err.message || `Failed to ${actionType} subscription`);
+      setActionError(err.message || `Failed to ${actionType} subscription.`);
     }
   };
 
@@ -83,11 +85,11 @@ export default function AdminSubscriptionsPage() {
         <div>
           <Link
             href={`/admin/subscriptions/${item.id}`}
-            className="font-semibold text-brand-600 hover:text-brand-800 flex items-center space-x-1"
+            className="font-medium text-[#172033] hover:text-[#315CF5] font-mono block"
           >
-            <span>{item.subscriptionNumber}</span>
+            {item.subscriptionNumber}
           </Link>
-          <span className="text-[11px] text-slate-400 font-mono">
+          <span className="text-[11px] text-[#64748B] font-mono">
             Started: {formatDate(item.createdAt)}
           </span>
         </div>
@@ -96,18 +98,18 @@ export default function AdminSubscriptionsPage() {
     {
       header: "Customer",
       cell: (item) => (
-        <div>
-          <p className="font-medium text-slate-900">{item.customer?.fullName || "—"}</p>
+        <div className="min-w-0 max-w-[200px]">
+          <p className="font-medium text-[#172033] truncate">{item.customer?.fullName || "—"}</p>
           {item.customer?.companyName && (
-            <p className="text-xs text-slate-500">{item.customer.companyName}</p>
+            <p className="text-[11px] text-[#64748B] truncate">{item.customer.companyName}</p>
           )}
         </div>
       ),
     },
     {
-      header: "Billing Interval",
+      header: "Interval",
       cell: (item) => (
-        <span className="text-xs font-mono uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+        <span className="text-[11px] font-mono uppercase bg-[#F8FAFC] text-[#64748B] px-2 py-0.5 rounded-[4px] border border-[#E5EAF1]">
           {item.intervalCount > 1 ? `${item.intervalCount} ` : ""}{item.billingInterval}
         </span>
       ),
@@ -115,9 +117,9 @@ export default function AdminSubscriptionsPage() {
     {
       header: "Current Period",
       cell: (item) => (
-        <div className="text-xs text-slate-600 font-mono">
+        <div className="text-[12px] text-[#64748B] font-mono">
           <span>{formatDate(item.currentPeriodStart)}</span>
-          <span className="mx-1 text-slate-400">→</span>
+          <span className="mx-1 text-[#CBD5E1]">→</span>
           <span>{formatDate(item.currentPeriodEnd)}</span>
         </div>
       ),
@@ -125,15 +127,16 @@ export default function AdminSubscriptionsPage() {
     {
       header: "Next Billing",
       cell: (item) => (
-        <span className="text-xs font-mono font-medium text-slate-800">
+        <span className="text-[12px] font-mono text-[#172033]">
           {formatDate(item.nextBillingDate)}
         </span>
       ),
     },
     {
       header: "Recurring Total",
+      align: "right",
       cell: (item) => (
-        <div className="font-semibold text-slate-900 font-mono">
+        <div className="font-mono font-medium text-[#172033]">
           <MoneyDisplay
             amountMinor={calculateTotalAmount(item).toString()}
             currency={item.currency}
@@ -147,23 +150,29 @@ export default function AdminSubscriptionsPage() {
     },
     {
       header: "Actions",
-      className: "text-right",
+      align: "right",
       cell: (item) => (
         <div className="flex items-center justify-end space-x-1.5">
+          <Link
+            href={`/admin/subscriptions/${item.id}`}
+            className="p-1.5 text-[#64748B] hover:text-[#172033] hover:bg-[#F8FAFC] rounded-[6px] transition"
+            title="View Details"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </Link>
+
           {item.status === SubscriptionStatus.ACTIVE && (
             <button
               onClick={() =>
                 setConfirmDialog({
                   isOpen: true,
                   title: "Pause Subscription",
-                  description: `Pause subscription ${item.subscriptionNumber}? Paused subscriptions will not generate recurring invoices.`,
+                  description: `Pause subscription ${item.subscriptionNumber}? Paused subscriptions will pause automated recurring billing runs.`,
                   action: () => handleAction(item.id, "pause"),
                 })
               }
-              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
-              title="Pause Subscription"
+              className="px-2 py-0.5 text-[11px] font-medium rounded-[5px] text-[#C58A24] bg-[#FDF8ED] hover:bg-[#F6E2B8] border border-[#F6E2B8] transition"
             >
-              <Pause className="w-3 h-3 mr-1" />
               Pause
             </button>
           )}
@@ -174,14 +183,12 @@ export default function AdminSubscriptionsPage() {
                 setConfirmDialog({
                   isOpen: true,
                   title: "Resume Subscription",
-                  description: `Resume subscription ${item.subscriptionNumber}?`,
+                  description: `Resume recurring billing for subscription ${item.subscriptionNumber}?`,
                   action: () => handleAction(item.id, "resume"),
                 })
               }
-              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200"
-              title="Resume Subscription"
+              className="px-2 py-0.5 text-[11px] font-medium rounded-[5px] text-[#16865B] bg-[#EDF7F2] hover:bg-[#C7E8D8] border border-[#C7E8D8] transition"
             >
-              <Play className="w-3 h-3 mr-1" />
               Resume
             </button>
           )}
@@ -192,24 +199,15 @@ export default function AdminSubscriptionsPage() {
                 setConfirmDialog({
                   isOpen: true,
                   title: "Cancel Subscription",
-                  description: `Cancel subscription ${item.subscriptionNumber}? Once cancelled, it will not generate future invoices.`,
+                  description: `Cancel subscription ${item.subscriptionNumber}? It will cease generating future invoices.`,
                   action: () => handleAction(item.id, "cancel"),
                 })
               }
-              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200"
-              title="Cancel Subscription"
+              className="px-2 py-0.5 text-[11px] font-medium rounded-[5px] text-[#D14343] bg-[#FDEDED] hover:bg-[#F8C6C6] border border-[#F8C6C6] transition"
             >
-              <XCircle className="w-3 h-3 mr-1" />
               Cancel
             </button>
           )}
-
-          <Link
-            href={`/admin/subscriptions/${item.id}`}
-            className="text-xs text-slate-500 hover:text-slate-800 underline font-medium ml-2"
-          >
-            Details
-          </Link>
         </div>
       ),
     },
@@ -219,45 +217,62 @@ export default function AdminSubscriptionsPage() {
     <DashboardShell>
       <PageHeader
         title="Subscriptions"
-        description="Manage recurring customer subscriptions, billing periods, and lifecycle states."
+        description="Active recurring customer contracts, billing cycles and renewal state machines."
+        badge={
+          pagination ? (
+            <span className="px-2 py-0.5 rounded-[5px] bg-[#F1F5F9] border border-[#E5EAF1] text-[11px] font-medium text-[#64748B]">
+              {pagination.total} Total
+            </span>
+          ) : undefined
+        }
       >
         <Link
           href="/admin/subscriptions/new"
-          className="inline-flex items-center px-3.5 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 shadow-sm"
+          className="inline-flex items-center px-3.5 py-1.5 text-[13px] font-medium rounded-[8px] bg-[#315CF5] text-white hover:bg-[#2549D8] shadow-xs transition"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
           New Subscription
         </Link>
       </PageHeader>
 
-      {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+      {actionError && (
+        <div className="mb-4 p-3 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
+          {actionError}
+        </div>
+      )}
+
+      {/* Filter and Search Bar */}
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search subscription # or customer..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by subscription # or customer..."
+            className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-[#F8FAFC] border border-[#E5EAF1] rounded-[8px] focus:bg-white focus:outline-hidden focus:border-[#315CF5] text-[#172033] transition"
           />
         </div>
 
-        <div className="flex items-center space-x-3 w-full md:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-slate-700"
-          >
-            <option value="">All Statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="PAUSED">Paused</option>
-            <option value="CANCELLED">Cancelled</option>
-            <option value="TRIALING">Trialing</option>
-            <option value="PAST_DUE">Past Due</option>
-            <option value="EXPIRED">Expired</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          className="w-full sm:w-auto px-3 py-1.5 text-[12px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+        >
+          <option value="">All Statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="TRIALING">Trialing</option>
+          <option value="PAST_DUE">Past Due</option>
+          <option value="PAUSED">Paused</option>
+          <option value="CANCELLED">Cancelled</option>
+          <option value="EXPIRED">Expired</option>
+        </select>
       </div>
 
       <DataTable
@@ -266,14 +281,19 @@ export default function AdminSubscriptionsPage() {
         pagination={pagination}
         onPageChange={(p) => setPage(p)}
         loading={loading}
+        emptyTitle="No subscriptions found"
+        emptyDescription="Create or convert approved quotations to establish recurring contracts."
       />
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
         description={confirmDialog.description}
-        onConfirm={confirmDialog.action}
-        onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={async () => {
+          await confirmDialog.action();
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        }}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
     </DashboardShell>
   );

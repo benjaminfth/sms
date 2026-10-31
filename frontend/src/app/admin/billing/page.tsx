@@ -14,6 +14,9 @@ import {
   RotateCcw,
   CheckCircle2,
   X,
+  History,
+  Clock,
+  Layers,
 } from "lucide-react";
 
 export default function AdminBillingPage() {
@@ -59,238 +62,248 @@ export default function AdminBillingPage() {
         setShowRunModal(false);
         fetchData();
       }
-    } catch (err: any) {
-      alert(err.message || "Failed to execute billing run");
+    } catch (err) {
+      console.error("Failed to execute billing run:", err);
     } finally {
       setRunningBilling(false);
     }
   };
 
-  const latestRun = runs[0];
-
   return (
     <DashboardShell>
       <PageHeader
-        title="Recurring Billing Engine"
-        description="Automated subscription billing cycle execution, invoice generation, and idempotency protection."
-      >
-        <button
-          onClick={() => setShowRunModal(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
-        >
-          <Play className="w-4 h-4 mr-2" />
-          Run Billing Engine
-        </button>
-      </PageHeader>
-
-      {/* Latest Run KPI Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Last Execution
-          </span>
-          <p className="text-lg font-bold text-slate-900 font-mono">
-            {latestRun ? formatDate(latestRun.createdAt) : "Never executed"}
-          </p>
+        title="Automated Billing Engine"
+        description="Monitor automated recurring billing runs, advance subscription cycles, and audit invoice generation"
+        actions={
           <div className="flex items-center space-x-2">
-            {latestRun && <StatusBadge status={latestRun.status} />}
+            <button
+              onClick={fetchData}
+              className="inline-flex items-center px-3 py-1.5 rounded-btn border border-border bg-surface-card hover:bg-surface-canvas text-[13px] font-medium text-text-primary transition-colors shadow-xs"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+            <button
+              onClick={() => setShowRunModal(true)}
+              className="inline-flex items-center px-3.5 py-1.5 rounded-btn bg-primary-accent hover:bg-primary-hover text-[13px] font-medium text-white transition-colors shadow-xs"
+            >
+              <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+              Execute Billing Run
+            </button>
           </div>
-        </div>
+        }
+      />
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Subscriptions Examined
-          </span>
-          <p className="text-2xl font-extrabold text-slate-900 font-mono">
-            {latestRun ? latestRun.processedSubscriptionsCount : 0}
-          </p>
-          <span className="text-xs text-slate-400">Due for billing</span>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Invoices Generated
-          </span>
-          <p className="text-2xl font-extrabold text-emerald-600 font-mono">
-            {latestRun ? latestRun.successfulInvoicesCount : 0}
-          </p>
-          <span className="text-xs text-slate-400">Created with frozen snapshots</span>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Failed Attempts
-          </span>
-          <p className="text-2xl font-extrabold text-rose-600 font-mono">
-            {latestRun ? latestRun.failedInvoicesCount : 0}
-          </p>
-          <span className="text-xs text-slate-400">Skipped without billing advancement</span>
-        </div>
-      </div>
-
-      {/* Execution Result Banner */}
       {lastResult && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-5 rounded-xl mb-8 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+        <div className="mb-6 p-4 rounded-card bg-surface-card border border-border shadow-xs">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-full bg-status-success/15 text-status-success flex items-center justify-center shrink-0 mt-0.5">
+                <CheckCircle2 className="w-5 h-5 stroke-[2.2]" />
+              </div>
               <div>
-                <h4 className="font-bold text-sm">Billing Cycle Run Completed Successfully</h4>
-                <p className="text-xs text-emerald-700 mt-0.5">
-                  Processed {lastResult.processedCount} subscriptions — Generated {lastResult.invoicesGeneratedCount} invoices, skipped {lastResult.skippedCount} (idempotent duplicate protection).
+                <h4 className="text-[14px] font-semibold text-text-primary">
+                  Billing Execution Completed
+                </h4>
+                <p className="text-[12px] text-text-secondary mt-0.5">
+                  Processed {lastResult.processedSubscriptionsCount || 0} subscriptions • Generated {lastResult.successfulInvoicesCount || 0} invoices ({lastResult.failedInvoicesCount || 0} failed)
                 </p>
               </div>
             </div>
             <button
               onClick={() => setLastResult(null)}
-              className="text-emerald-700 hover:text-emerald-900"
+              className="text-text-muted hover:text-text-primary p-1 rounded-btn hover:bg-surface-canvas"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Billing Runs History */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <RotateCcw className="w-4 h-4 text-slate-600" />
-            <h3 className="text-sm font-semibold text-slate-800">Billing Runs History</h3>
+      {/* Execution Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-surface-card p-4 rounded-card border border-border shadow-xs">
+          <div className="text-[12px] font-medium text-text-secondary">Total Runs Logged</div>
+          <div className="text-[24px] font-semibold text-text-primary tracking-tight mt-1">
+            {runs.length}
           </div>
-          <span className="text-xs text-slate-500">{runs.length} recorded run(s)</span>
+          <div className="text-[11px] text-text-muted mt-0.5">Automated and manual execution batches</div>
         </div>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
-              <th className="py-3 px-4">Run Date & Time</th>
-              <th className="py-3 px-4">Target Date</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4 text-right">Processed</th>
-              <th className="py-3 px-4 text-right">Invoices Created</th>
-              <th className="py-3 px-4 text-right">Failed</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {runs.map((r) => (
-              <tr key={r.id} className="hover:bg-slate-50/60">
-                <td className="py-3.5 px-4 font-mono text-xs text-slate-800">
-                  {formatDate(r.createdAt)}
-                </td>
-                <td className="py-3.5 px-4 font-mono text-xs text-slate-600">
-                  {formatDate(r.targetDate)}
-                </td>
-                <td className="py-3.5 px-4">
-                  <StatusBadge status={r.status} />
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono text-slate-700">
-                  {r.processedSubscriptionsCount}
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono font-semibold text-emerald-700">
-                  {r.successfulInvoicesCount}
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono font-semibold text-rose-700">
-                  {r.failedInvoicesCount}
-                </td>
-              </tr>
-            ))}
-            {runs.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
-                  No billing runs executed yet. Click &quot;Run Billing Engine&quot; to execute your first cycle.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div className="bg-surface-card p-4 rounded-card border border-border shadow-xs">
+          <div className="text-[12px] font-medium text-text-secondary">Successful Invoices In Log</div>
+          <div className="text-[24px] font-semibold text-status-success tracking-tight mt-1">
+            {runs.reduce((acc, r) => acc + (r.successfulInvoicesCount || 0), 0)}
+          </div>
+          <div className="text-[11px] text-text-muted mt-0.5">Generated across recorded cycles</div>
+        </div>
+
+        <div className="bg-surface-card p-4 rounded-card border border-border shadow-xs">
+          <div className="text-[12px] font-medium text-text-secondary">Recent Audit Attempts</div>
+          <div className="text-[24px] font-semibold text-text-primary tracking-tight mt-1">
+            {attempts.length}
+          </div>
+          <div className="text-[11px] text-text-muted mt-0.5">Detailed subscription generation traces</div>
+        </div>
       </div>
 
-      {/* Recent Billing Attempts Log */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+      {/* Execution History Table */}
+      <div className="bg-surface-card rounded-card border border-border shadow-xs overflow-hidden mb-8">
+        <div className="p-4 border-b border-border bg-surface-canvas flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Zap className="w-4 h-4 text-slate-600" />
-            <h3 className="text-sm font-semibold text-slate-800">Recent Billing Attempts & Audit Log</h3>
+            <History className="w-4 h-4 text-text-secondary" />
+            <h3 className="text-[13px] font-semibold text-text-primary">Billing Run History</h3>
           </div>
+          <span className="text-[12px] text-text-muted font-mono">{runs.length} cycles</span>
         </div>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
-              <th className="py-3 px-4">Attempt Time</th>
-              <th className="py-3 px-4">Subscription</th>
-              <th className="py-3 px-4">Outcome</th>
-              <th className="py-3 px-4">Generated Invoice</th>
-              <th className="py-3 px-4">Details / Notes</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {attempts.map((att) => (
-              <tr key={att.id} className="hover:bg-slate-50/60">
-                <td className="py-3.5 px-4 text-xs font-mono text-slate-600">
-                  {formatDate(att.attemptedAt)}
-                </td>
-                <td className="py-3.5 px-4 font-mono text-xs font-semibold text-brand-600">
-                  <Link href={`/admin/subscriptions/${att.subscriptionId}`}>
-                    {att.subscription?.subscriptionNumber || att.subscriptionId.slice(0, 8)}
-                  </Link>
-                </td>
-                <td className="py-3.5 px-4">
-                  <StatusBadge status={att.status} />
-                </td>
-                <td className="py-3.5 px-4 font-mono text-xs">
-                  {att.invoiceId ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-border text-[11px] font-medium text-text-muted uppercase tracking-wider bg-surface-canvas/50">
+                <th className="py-2.5 px-4">Run Timestamp</th>
+                <th className="py-2.5 px-4">Target Date</th>
+                <th className="py-2.5 px-4">Status</th>
+                <th className="py-2.5 px-4 text-right">Processed</th>
+                <th className="py-2.5 px-4 text-right">Invoices Created</th>
+                <th className="py-2.5 px-4 text-right">Failed</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {runs.map((r) => (
+                <tr key={r.id} className="hover:bg-surface-canvas/50 transition-colors">
+                  <td className="py-3 px-4 font-mono text-[12px] text-text-primary">
+                    {formatDate(r.createdAt)}
+                  </td>
+                  <td className="py-3 px-4 font-mono text-[12px] text-text-secondary">
+                    {formatDate(r.targetDate)}
+                  </td>
+                  <td className="py-3 px-4">
+                    <StatusBadge status={r.status} />
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono text-text-secondary">
+                    {r.processedSubscriptionsCount}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-medium text-status-success">
+                    {r.successfulInvoicesCount}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-medium text-status-danger">
+                    {r.failedInvoicesCount}
+                  </td>
+                </tr>
+              ))}
+              {runs.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-text-muted text-[13px]">
+                    No billing runs recorded yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Audit Log Table */}
+      <div className="bg-surface-card rounded-card border border-border shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-border bg-surface-canvas flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Zap className="w-4 h-4 text-text-secondary" />
+            <h3 className="text-[13px] font-semibold text-text-primary">
+              Subscription Billing Attempts Audit Log
+            </h3>
+          </div>
+          <span className="text-[12px] text-text-muted font-mono">{attempts.length} attempts</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-border text-[11px] font-medium text-text-muted uppercase tracking-wider bg-surface-canvas/50">
+                <th className="py-2.5 px-4">Attempt Timestamp</th>
+                <th className="py-2.5 px-4">Subscription</th>
+                <th className="py-2.5 px-4">Outcome</th>
+                <th className="py-2.5 px-4">Generated Invoice</th>
+                <th className="py-2.5 px-4">Details / Diagnostics</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {attempts.map((att) => (
+                <tr key={att.id} className="hover:bg-surface-canvas/50 transition-colors">
+                  <td className="py-3 px-4 font-mono text-[12px] text-text-secondary">
+                    {formatDate(att.attemptedAt)}
+                  </td>
+                  <td className="py-3 px-4 font-mono text-[12px] font-medium text-primary-accent">
                     <Link
-                      href={`/admin/invoices/${att.invoiceId}`}
-                      className="text-brand-600 hover:text-brand-800 underline font-semibold"
+                      href={`/admin/subscriptions/${att.subscriptionId}`}
+                      className="hover:underline"
                     >
-                      {att.invoice?.invoiceNumber || "View Invoice"}
+                      {att.subscription?.subscriptionNumber || att.subscriptionId.slice(0, 8)}
                     </Link>
-                  ) : (
-                    <span className="text-slate-400">—</span>
-                  )}
-                </td>
-                <td className="py-3.5 px-4 text-xs text-slate-500">
-                  {att.errorMessage || "Billing successfully processed"}
-                </td>
-              </tr>
-            ))}
-            {attempts.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-slate-400 text-xs">
-                  No billing attempts logged yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  </td>
+                  <td className="py-3 px-4">
+                    <StatusBadge status={att.status} />
+                  </td>
+                  <td className="py-3 px-4 font-mono text-[12px]">
+                    {att.invoiceId ? (
+                      <Link
+                        href={`/admin/invoices/${att.invoiceId}`}
+                        className="text-primary-accent hover:underline font-medium"
+                      >
+                        {att.invoice?.invoiceNumber || "View Invoice"}
+                      </Link>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-[12px] text-text-secondary">
+                    {att.errorMessage || "Billing successfully executed"}
+                  </td>
+                </tr>
+              ))}
+              {attempts.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-text-muted text-[13px]">
+                    No billing attempts recorded yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Trigger Billing Run Modal */}
       {showRunModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 border border-slate-200">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowRunModal(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+        >
+          <div className="bg-surface-card rounded-dialog shadow-xl w-full max-w-md p-6 border border-border animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center border-b border-border pb-3 mb-4">
               <div className="flex items-center space-x-2">
-                <Zap className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-semibold text-slate-900">Execute Billing Run</h3>
+                <Zap className="w-4 h-4 text-primary-accent" />
+                <h3 className="text-[15px] font-semibold text-text-primary">
+                  Execute Billing Run
+                </h3>
               </div>
               <button
                 onClick={() => setShowRunModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-text-muted hover:text-text-primary p-1 rounded-btn hover:bg-surface-canvas"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleExecuteBilling} className="space-y-4">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                The billing engine scans all active subscriptions due on or before the selected target date, generates invoices, and advances their billing periods. Subscriptions already invoiced for this period will be skipped (idempotent protection).
+              <p className="text-[12px] text-text-secondary leading-relaxed">
+                The billing engine scans all active subscriptions due on or before the selected target date, generates invoices, and advances their billing periods. Subscriptions already invoiced for this period will be safely skipped.
               </p>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                <label className="block text-[12px] font-medium text-text-primary mb-1.5">
                   Billing Target Date
                 </label>
                 <input
@@ -298,28 +311,28 @@ export default function AdminBillingPage() {
                   required
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full border border-border rounded-input px-3.5 py-2 text-[13px] bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
                 />
-                <span className="text-[11px] text-slate-400 block mt-1">
+                <span className="text-[11px] text-text-muted block mt-1">
                   Subscriptions with next billing date on or before this date will be invoiced.
                 </span>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+              <div className="flex justify-end space-x-2 pt-4 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setShowRunModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2 text-[12px] font-medium text-text-secondary hover:text-text-primary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={runningBilling}
-                  className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  className="inline-flex items-center px-4 py-2 text-[12px] font-medium rounded-btn text-white bg-primary-accent hover:bg-primary-hover disabled:opacity-50 transition-colors shadow-xs"
                 >
-                  <Play className="w-4 h-4 mr-1.5" />
-                  {runningBilling ? "Processing..." : "Run Billing Now"}
+                  <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                  {runningBilling ? "Processing..." : "Run Billing Cycle"}
                 </button>
               </div>
             </form>

@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { MoneyDisplay } from "@/components/shared/MoneyDisplay";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
-import { InvoiceWithDetailsDTO, InvoiceStatus } from "@sms/shared";
+import { InvoiceWithDetailsDTO, InvoiceStatus, formatMinorToCurrency } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -21,7 +21,8 @@ import {
   Calendar,
   CreditCard,
   Repeat,
-  Sparkles,
+  CheckCircle2,
+  Receipt,
 } from "lucide-react";
 
 export default function InvoiceDetailsPage() {
@@ -34,6 +35,7 @@ export default function InvoiceDetailsPage() {
 
   // Void confirmation dialog state
   const [showVoidDialog, setShowVoidDialog] = useState(false);
+  const [voiding, setVoiding] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
     setLoading(true);
@@ -54,18 +56,25 @@ export default function InvoiceDetailsPage() {
   }, [fetchInvoice]);
 
   const handleVoid = async () => {
+    setVoiding(true);
     try {
-      await api.post(`/invoices/${id}/void`, { reason: "Voided by admin" });
+      await api.post(`/invoices/${id}/void`, { reason: "Voided by admin operator" });
+      setShowVoidDialog(false);
       fetchInvoice();
     } catch (err: any) {
-      alert(err.message || "Failed to void invoice");
+      setError(err.message || "Failed to void invoice");
+    } finally {
+      setVoiding(false);
     }
   };
 
   if (loading) {
     return (
       <DashboardShell>
-        <div className="py-20 text-center text-slate-400">Loading invoice details...</div>
+        <div className="py-20 text-center text-[#94A3B8]">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#315CF5] border-t-transparent" />
+          <p className="mt-2 text-[12px]">Loading financial invoice snapshot...</p>
+        </div>
       </DashboardShell>
     );
   }
@@ -73,207 +82,198 @@ export default function InvoiceDetailsPage() {
   if (error || !invoice) {
     return (
       <DashboardShell>
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 p-6 rounded-xl">
-          {error || "Invoice not found"}
+        <div className="bg-[#FDEDED] border border-[#F8C6C6] text-[#D14343] p-6 rounded-[10px] text-[13px]">
+          {error || "Invoice record not found"}
         </div>
       </DashboardShell>
     );
   }
 
-  const canVoid =
-    invoice.status !== InvoiceStatus.PAID &&
-    invoice.status !== InvoiceStatus.VOID &&
-    BigInt(invoice.amountPaidMinor) === BigInt(0);
-
   return (
     <DashboardShell>
+      <div className="mb-4">
+        <Link
+          href="/admin/invoices"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+          Back to Invoices
+        </Link>
+      </div>
+
       <PageHeader
         title={invoice.invoiceNumber}
-        description={`Issued on ${formatDate(invoice.createdAt)}`}
+        description={`Commercial billing statement issued on ${formatDate(invoice.createdAt)}`}
+        badge={<StatusBadge status={invoice.status} />}
       >
         <div className="flex items-center space-x-2">
           <Link
-            href="/admin/invoices"
-            className="inline-flex items-center px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 mr-2"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            All Invoices
-          </Link>
-
-          <Link
             href={`/admin/invoices/${invoice.id}/print`}
             target="_blank"
-            className="inline-flex items-center px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm"
+            className="inline-flex items-center px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] shadow-xs transition"
           >
-            <Printer className="w-4 h-4 mr-2 text-slate-500" />
-            Print Invoice
+            <Printer className="w-3.5 h-3.5 mr-1.5 text-[#64748B]" />
+            Print / PDF
           </Link>
 
-          {canVoid && (
+          {invoice.status !== InvoiceStatus.VOID && invoice.status !== InvoiceStatus.PAID && (
             <button
               onClick={() => setShowVoidDialog(true)}
-              className="inline-flex items-center px-3.5 py-2 border border-rose-300 rounded-lg text-sm font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 shadow-sm"
+              className="inline-flex items-center px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium text-[#D14343] bg-white border border-[#F8C6C6] hover:bg-[#FDEDED] transition"
             >
-              <Ban className="w-4 h-4 mr-1.5" />
+              <Ban className="w-3.5 h-3.5 mr-1.5" />
               Void Invoice
             </button>
           )}
         </div>
       </PageHeader>
 
-      {/* Invoice Overview Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Customer Details
-            </span>
-            <Building className="w-4 h-4 text-slate-400" />
+      {/* Financial Snapshot Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Customer</span>
+            <Building className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          <p className="font-semibold text-slate-900 text-sm">{invoice.customer?.fullName}</p>
-          <p className="text-xs text-slate-500">{invoice.customer?.companyName || "Individual"}</p>
-          <p className="text-xs text-slate-400 font-mono">{invoice.customer?.gstOrTaxId ? `GST: ${invoice.customer.gstOrTaxId}` : ""}</p>
+          <p className="font-semibold text-[#172033] text-[14px] truncate">
+            {invoice.customer?.fullName}
+          </p>
+          <p className="text-[12px] text-[#64748B] truncate mt-0.5">
+            {invoice.customer?.companyName || "Individual Customer"}
+          </p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Payment Status
-            </span>
-            <StatusBadge status={invoice.status} />
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Payment Due Date</span>
+            <Calendar className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          <div className="space-y-1 text-xs text-slate-600">
-            <div>Due Date: <span className="font-mono font-medium">{formatDate(invoice.dueDate)}</span></div>
-            {invoice.paidAt && (
-              <div className="text-emerald-700">Paid At: <span className="font-mono font-medium">{formatDate(invoice.paidAt)}</span></div>
-            )}
-          </div>
+          <p className="font-semibold text-[#172033] text-[14px] font-mono">
+            {formatDate(invoice.dueDate)}
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-0.5">
+            Net 15 terms standard
+          </p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Billing Period
-            </span>
-            <Calendar className="w-4 h-4 text-slate-400" />
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Total Invoiced</span>
+            <Receipt className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          {invoice.billingPeriodStart && invoice.billingPeriodEnd ? (
-            <div className="text-xs font-mono text-slate-700 space-y-0.5">
-              <div>From: {formatDate(invoice.billingPeriodStart)}</div>
-              <div>To: {formatDate(invoice.billingPeriodEnd)}</div>
-            </div>
-          ) : (
-            <span className="text-xs text-slate-400 italic">One-time invoice</span>
-          )}
-          {invoice.subscription && (
-            <Link
-              href={`/admin/subscriptions/${invoice.subscription.id}`}
-              className="text-xs text-brand-600 hover:text-brand-800 font-medium inline-flex items-center mt-1"
-            >
-              <Repeat className="w-3 h-3 mr-1" />
-              Subscription: {invoice.subscription.subscriptionNumber}
-            </Link>
-          )}
+          <p className="font-semibold text-[#172033] text-[18px] font-mono">
+            <MoneyDisplay amountMinor={invoice.totalAmountMinor} currency={invoice.currency} />
+          </p>
+          <p className="text-[11px] text-[#16865B] font-mono mt-0.5">
+            Paid: {formatMinorToCurrency(invoice.amountPaidMinor, invoice.currency)}
+          </p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Outstanding Balance
-            </span>
-            <CreditCard className="w-4 h-4 text-slate-400" />
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Outstanding Balance</span>
+            <CreditCard className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 font-mono">
+          <p className="font-semibold text-[#C58A24] text-[18px] font-mono">
             <MoneyDisplay amountMinor={invoice.balanceDueMinor} currency={invoice.currency} />
-          </div>
-          <p className="text-xs text-slate-400">
-            Total Invoiced: <MoneyDisplay amountMinor={invoice.totalAmountMinor} currency={invoice.currency} />
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-0.5">
+            {BigInt(invoice.balanceDueMinor) === BigInt(0) ? "Fully Settled" : "Awaiting Settlement"}
           </p>
         </div>
       </div>
 
       {/* Invoice Line Items (Frozen Snapshot) */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-800">
-            Line Items (Historical Commercial Snapshot)
-          </h3>
-          <span className="text-xs text-slate-500">
-            {invoice.items.length} item(s)
-          </span>
+      <div className="bg-white rounded-[10px] border border-[#E5EAF1] shadow-xs overflow-hidden mb-6">
+        <div className="p-4 border-b border-[#E5EAF1] flex items-center justify-between">
+          <div>
+            <h2 className="text-[14px] font-semibold text-[#172033]">
+              Line Items (Historical Commercial Snapshot)
+            </h2>
+            <p className="text-[12px] text-[#64748B] mt-0.5">{invoice.items.length} item(s) invoiced</p>
+          </div>
+          {invoice.subscription && (
+            <Link
+              href={`/admin/subscriptions/${invoice.subscription.id}`}
+              className="text-[12px] font-mono text-[#315CF5] hover:underline flex items-center space-x-1"
+            >
+              <Repeat className="w-3 h-3 mr-1" />
+              <span>{invoice.subscription.subscriptionNumber}</span>
+            </Link>
+          )}
         </div>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
-              <th className="py-3 px-4">Description</th>
-              <th className="py-3 px-4 text-right">Quantity</th>
-              <th className="py-3 px-4 text-right">Unit Price</th>
-              <th className="py-3 px-4 text-right">Tax (GST)</th>
-              <th className="py-3 px-4 text-right">Line Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {invoice.items.map((it) => (
-              <tr key={it.id} className="hover:bg-slate-50/60">
-                <td className="py-3.5 px-4">
-                  <p className="font-semibold text-slate-900">{it.description}</p>
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono text-slate-700">
-                  {parseFloat(it.quantity).toFixed(2)}
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono text-slate-700">
-                  <MoneyDisplay amountMinor={it.unitPriceMinor} currency={invoice.currency} />
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono text-slate-700">
-                  <MoneyDisplay amountMinor={it.taxAmountMinor} currency={invoice.currency} />
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-900">
-                  <MoneyDisplay amountMinor={it.totalAmountMinor} currency={invoice.currency} />
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
+            <thead>
+              <tr className="bg-[#F8FAFC] border-b border-[#E5EAF1] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                <th className="py-2.5 px-4">Description</th>
+                <th className="py-2.5 px-4 text-right">Quantity</th>
+                <th className="py-2.5 px-4 text-right">Unit Price</th>
+                <th className="py-2.5 px-4 text-right">Tax (GST)</th>
+                <th className="py-2.5 px-4 text-right">Line Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-[#E5EAF1]">
+              {invoice.items.map((it) => (
+                <tr key={it.id} className="hover:bg-[#F8FAFC]">
+                  <td className="py-3 px-4 font-medium text-[#172033]">{it.description}</td>
+                  <td className="py-3 px-4 text-right font-mono text-[#64748B]">
+                    {parseFloat(it.quantity).toFixed(2)}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono text-[#172033]">
+                    <MoneyDisplay amountMinor={it.unitPriceMinor} currency={invoice.currency} />
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono text-[#64748B]">
+                    <MoneyDisplay amountMinor={it.taxAmountMinor} currency={invoice.currency} />
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-medium text-[#172033]">
+                    <MoneyDisplay amountMinor={it.totalAmountMinor} currency={invoice.currency} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {/* Totals Summary Breakdown */}
-        <div className="p-6 bg-slate-50/50 border-t border-slate-200 flex justify-end">
-          <div className="w-72 space-y-2 text-sm">
-            <div className="flex justify-between text-slate-600">
+        <div className="p-6 bg-[#F8FAFC] border-t border-[#E5EAF1] flex justify-end">
+          <div className="w-72 space-y-2 text-[13px]">
+            <div className="flex justify-between text-[#64748B]">
               <span>Subtotal:</span>
-              <span className="font-mono font-medium">
+              <span className="font-mono text-[#172033]">
                 <MoneyDisplay amountMinor={invoice.subtotalMinor} currency={invoice.currency} />
               </span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-[#64748B]">
               <span>Taxes (GST 18%):</span>
-              <span className="font-mono font-medium">
+              <span className="font-mono text-[#172033]">
                 <MoneyDisplay amountMinor={invoice.taxAmountMinor} currency={invoice.currency} />
               </span>
             </div>
             {BigInt(invoice.discountAmountMinor) > BigInt(0) && (
-              <div className="flex justify-between text-emerald-700">
+              <div className="flex justify-between text-[#16865B]">
                 <span>Discounts Applied:</span>
-                <span className="font-mono font-medium">
+                <span className="font-mono">
                   -<MoneyDisplay amountMinor={invoice.discountAmountMinor} currency={invoice.currency} />
                 </span>
               </div>
             )}
-            <div className="border-t border-slate-200 pt-2 flex justify-between text-base font-extrabold text-slate-900">
+            <div className="border-t border-[#E5EAF1] pt-2 flex justify-between text-[15px] font-semibold text-[#172033]">
               <span>Grand Total:</span>
-              <span className="font-mono">
+              <span className="font-mono text-[#315CF5]">
                 <MoneyDisplay amountMinor={invoice.totalAmountMinor} currency={invoice.currency} />
               </span>
             </div>
-            <div className="flex justify-between text-emerald-700 pt-1">
+            <div className="flex justify-between text-[#16865B]">
               <span>Amount Paid:</span>
-              <span className="font-mono font-medium">
+              <span className="font-mono">
                 <MoneyDisplay amountMinor={invoice.amountPaidMinor} currency={invoice.currency} />
               </span>
             </div>
-            <div className="flex justify-between text-slate-900 font-bold border-t border-slate-200 pt-1">
+            <div className="flex justify-between text-[#172033] font-semibold border-t border-[#E5EAF1] pt-1">
               <span>Balance Due:</span>
-              <span className="font-mono">
+              <span className="font-mono text-[#C58A24]">
                 <MoneyDisplay amountMinor={invoice.balanceDueMinor} currency={invoice.currency} />
               </span>
             </div>
@@ -281,48 +281,55 @@ export default function InvoiceDetailsPage() {
         </div>
       </div>
 
-      {/* Payment Allocations Section (Developer 3 Integration) */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <CreditCard className="w-4 h-4 text-slate-600" />
-            <h3 className="text-sm font-semibold text-slate-800">
-              Payment Allocations (Developer 3 Payments Module)
-            </h3>
+      {/* Payment Allocations Section */}
+      <div className="bg-white rounded-[10px] border border-[#E5EAF1] shadow-xs overflow-hidden mb-6">
+        <div className="p-4 border-b border-[#E5EAF1] flex items-center justify-between">
+          <div>
+            <h2 className="text-[14px] font-semibold text-[#172033]">Payment Allocations</h2>
+            <p className="text-[12px] text-[#64748B] mt-0.5">
+              Settled payments mapped to this invoice balance
+            </p>
           </div>
-          <span className="text-xs text-slate-500">
-            {invoice.paymentAllocations?.length || 0} payment(s) allocated
+          <span className="text-[11px] font-medium text-[#64748B] bg-[#F8FAFC] px-2 py-0.5 rounded-[4px] border border-[#E5EAF1]">
+            {invoice.paymentAllocations?.length || 0} Allocated
           </span>
         </div>
 
         {invoice.paymentAllocations && invoice.paymentAllocations.length > 0 ? (
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
-                <th className="py-3 px-4">Payment Reference</th>
-                <th className="py-3 px-4">Payment Date</th>
-                <th className="py-3 px-4 text-right">Allocated Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {invoice.paymentAllocations.map((pa: any) => (
-                <tr key={pa.id} className="hover:bg-slate-50/60">
-                  <td className="py-3 px-4 font-mono font-semibold text-slate-900">
-                    {pa.payment?.paymentReference || pa.paymentId}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-600">
-                    {pa.createdAt ? formatDate(pa.createdAt) : "—"}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-700">
-                    <MoneyDisplay amountMinor={pa.allocatedAmountMinor} currency={invoice.currency} />
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[12px]">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E5EAF1] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                  <th className="py-2.5 px-4">Payment Reference</th>
+                  <th className="py-2.5 px-4">Payment Date</th>
+                  <th className="py-2.5 px-4 text-right">Allocated Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#E5EAF1]">
+                {invoice.paymentAllocations.map((pa: any) => (
+                  <tr key={pa.id} className="hover:bg-[#F8FAFC]">
+                    <td className="py-2.5 px-4 font-mono font-medium text-[#172033]">
+                      <Link
+                        href={`/admin/payments/${pa.paymentId}`}
+                        className="text-[#315CF5] hover:underline"
+                      >
+                        {pa.payment?.paymentReference || pa.paymentId}
+                      </Link>
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[#64748B]">
+                      {pa.createdAt ? formatDate(pa.createdAt) : "—"}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono font-medium text-[#16865B]">
+                      <MoneyDisplay amountMinor={pa.allocatedAmountMinor} currency={invoice.currency} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          <div className="p-6 text-center text-slate-400 text-xs">
-            No payments allocated to this invoice yet. Payments processed by Developer 3 will appear here automatically.
+          <div className="p-6 text-center text-[#94A3B8] text-[12px]">
+            No payment allocations recorded yet. When payments are recorded in the Payments Ledger, they can be matched here.
           </div>
         )}
       </div>
@@ -331,6 +338,9 @@ export default function InvoiceDetailsPage() {
         isOpen={showVoidDialog}
         title="Void Invoice"
         description={`Are you sure you want to VOID invoice ${invoice.invoiceNumber}? Once voided, it cannot be paid or reversed.`}
+        confirmLabel="Void Invoice"
+        variant="danger"
+        loading={voiding}
         onConfirm={handleVoid}
         onCancel={() => setShowVoidDialog(false)}
       />

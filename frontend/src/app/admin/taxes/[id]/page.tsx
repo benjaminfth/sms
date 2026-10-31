@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { api } from "@/lib/api-client";
 import { TaxDTO, ProductDTO } from "@sms/shared";
 import {
@@ -17,6 +18,7 @@ import {
   XCircle,
   CheckSquare,
   Square,
+  X,
 } from "lucide-react";
 
 export default function EditTaxPage() {
@@ -61,24 +63,21 @@ export default function EditTaxPage() {
             isActive: t.isActive,
           });
 
-          // Product IDs linked
-          const assigned = new Set<string>();
-          if (t.productTaxes) {
-            t.productTaxes.forEach((pt) => assigned.add(pt.productId));
+          if ((t as any).products) {
+            const ids = new Set<string>((t as any).products.map((p: any) => p.productId || p.id));
+            setAssignedProductIds(ids);
           }
-          setAssignedProductIds(assigned);
         }
 
         if (productsRes.success && productsRes.data) {
           setAllProducts(productsRes.data);
         }
       } catch (err: any) {
-        setMessage({ type: "error", text: err.message || "Failed to load tax details" });
+        setMessage({ type: "error", text: err.message || "Failed to load tax rate" });
       } finally {
         setLoading(false);
       }
     }
-
     loadData();
   }, [taxId]);
 
@@ -101,26 +100,27 @@ export default function EditTaxPage() {
     }));
   };
 
-  const handleSaveTax = async (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setMessage(null);
+    setSaving(true);
 
     try {
-      const res = await api.patch(`/taxes/${taxId}`, {
+      const res = await api.put<TaxDTO>(`/taxes/${taxId}`, {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         rateBasisPoints: formData.rateBasisPoints,
         isActive: formData.isActive,
       });
 
-      if (res.success) {
-        setMessage({ type: "success", text: "Tax details updated successfully" });
+      if (res.success && res.data) {
+        setTax(res.data);
+        setMessage({ type: "success", text: "Tax rate configuration updated successfully" });
       } else {
         setMessage({ type: "error", text: res.error?.message || "Failed to update tax" });
       }
     } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Error updating tax" });
+      setMessage({ type: "error", text: err.message || "An error occurred" });
     } finally {
       setSaving(false);
     }
@@ -141,220 +141,210 @@ export default function EditTaxPage() {
   const handleSaveProductAssignments = async () => {
     setSavingProducts(true);
     setMessage(null);
-
     try {
-      // Loop over products and sync tax
-      const promises = allProducts.map(async (prod) => {
-        const isAssigned = assignedProductIds.has(prod.id);
-        const existingTaxesRes = await api.get<TaxDTO[]>(`/products/${prod.id}/taxes`);
-        const existingTaxIds = (existingTaxesRes.data || []).map((t) => t.id);
-
-        let newTaxIds: string[];
-        if (isAssigned) {
-          newTaxIds = Array.from(new Set([...existingTaxIds, taxId]));
-        } else {
-          newTaxIds = existingTaxIds.filter((id) => id !== taxId);
-        }
-
-        return api.post(`/products/${prod.id}/taxes`, { taxIds: newTaxIds });
+      const res = await api.post(`/taxes/${taxId}/assign-products`, {
+        productIds: Array.from(assignedProductIds),
       });
 
-      await Promise.all(promises);
-      setMessage({ type: "success", text: "Product tax assignments updated successfully!" });
+      if (res.success) {
+        setMessage({ type: "success", text: "Assigned catalog products updated successfully" });
+      } else {
+        setMessage({ type: "error", text: res.error?.message || "Failed to assign products" });
+      }
     } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Failed to update product tax assignments" });
+      setMessage({ type: "error", text: err.message || "An error occurred" });
     } finally {
       setSavingProducts(false);
     }
   };
 
-  if (loading) {
-    return (
-      <DashboardShell>
-        <div className="p-12 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-brand-600 border-t-transparent" />
-          <p className="text-xs text-slate-400 mt-2 font-medium">Loading tax details...</p>
-        </div>
-      </DashboardShell>
-    );
-  }
-
   return (
     <DashboardShell>
       <PageHeader
-        title={`Configure Tax: ${formData.code}`}
-        description="Edit tax parameters and manage assigned products"
-      >
-        <Link
-          href="/admin/taxes"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition"
-        >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Taxes
-        </Link>
-      </PageHeader>
+        title={`Tax Rate: ${tax?.name || "Loading..."}`}
+        description="Configure tax statutory rate and map to applicable product catalog items"
+        badge={tax && <StatusBadge status={tax.isActive ? "ACTIVE" : "INACTIVE"} />}
+        actions={
+          <Link
+            href="/admin/taxes"
+            className="inline-flex items-center px-3 py-1.5 border border-border rounded-btn text-[13px] font-medium text-text-primary bg-surface-card hover:bg-surface-canvas transition-colors shadow-xs"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+            Back to Taxes
+          </Link>
+        }
+      />
 
       {message && (
         <div
-          className={`mb-6 p-3.5 rounded-lg border text-xs flex items-center ${
+          className={`mb-5 p-3 rounded-btn border text-[13px] font-medium flex items-center justify-between ${
             message.type === "success"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-red-50 border-red-200 text-red-800"
+              ? "bg-status-success/10 border-status-success/20 text-status-success"
+              : "bg-status-danger/10 border-status-danger/20 text-status-danger"
           }`}
         >
-          {message.type === "success" ? (
-            <Check className="w-4 h-4 mr-2 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 mr-2 text-red-600 shrink-0" />
-          )}
           <span>{message.text}</span>
+          <button onClick={() => setMessage(null)} className="opacity-70 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Tax Details Form */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-          <h3 className="text-sm font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            Tax Configuration
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Form: Tax Details */}
+        <div className="lg:col-span-2 bg-surface-card rounded-card border border-border p-6 shadow-xs">
+          <h3 className="text-[15px] font-semibold text-text-primary mb-4 pb-3 border-b border-border">
+            Configuration Details
           </h3>
 
-          <form onSubmit={handleSaveTax} className="space-y-4">
+          <form onSubmit={handleUpdate} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Tax Name</label>
+              <label className="block text-[12px] font-medium text-text-primary mb-1">
+                Tax Name *
+              </label>
               <input
                 type="text"
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"
+                className="w-full text-[13px] border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Tax Code</label>
+              <label className="block text-[12px] font-medium text-text-primary mb-1">
+                Tax Code *
+              </label>
               <input
                 type="text"
                 required
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"
+                className="w-full text-[13px] font-mono border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Percentage (%)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.ratePercent}
-                  onChange={(e) => handlePercentChange(e.target.value)}
-                  className="w-full text-xs border border-slate-200 rounded px-2.5 py-1.5 bg-white"
-                />
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Tax Rate (%) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    required
+                    value={formData.ratePercent}
+                    onChange={(e) => handlePercentChange(e.target.value)}
+                    className="w-full text-[13px] font-mono border border-border rounded-input px-3.5 py-2 pr-8 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-text-muted">
+                    %
+                  </span>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Basis Points (bps)</label>
+                <label className="block text-[12px] font-medium text-text-primary mb-1">
+                  Basis Points (bps)
+                </label>
                 <input
                   type="number"
+                  min="0"
+                  max="10000"
                   value={formData.rateBasisPoints}
-                  onChange={(e) => handleBpsChange(parseInt(e.target.value, 10) || 0)}
-                  className="w-full text-xs font-mono border border-slate-200 rounded px-2.5 py-1.5 bg-white"
+                  onChange={(e) => handleBpsChange(parseInt(e.target.value) || 0)}
+                  className="w-full text-[13px] font-mono border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
                 />
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 pt-2">
-              <input
-                type="checkbox"
-                id="editIsActive"
-                checked={formData.isActive}
-                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-              />
-              <label htmlFor="editIsActive" className="text-xs font-medium text-slate-700">
-                Active tax rule
+            <div className="pt-2">
+              <label className="flex items-center space-x-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  className="w-4 h-4 rounded text-primary-accent border-border focus:ring-primary-accent"
+                />
+                <span className="text-[13px] font-medium text-text-primary">
+                  Active statutory tax rule
+                </span>
               </label>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="pt-4 border-t border-border flex justify-end">
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition disabled:opacity-50"
+                className="inline-flex items-center px-4 py-2 text-[12px] font-medium rounded-btn text-white bg-primary-accent hover:bg-primary-hover disabled:opacity-50 transition-colors shadow-xs"
               >
                 <Save className="w-3.5 h-3.5 mr-1.5" />
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? "Updating..." : "Save Configuration"}
               </button>
             </div>
           </form>
         </div>
 
-        {/* Assigned Products Section */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-2 mb-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Product Tax Assignments</h3>
-                <p className="text-xs text-slate-500">
-                  Select which catalog products this tax automatically applies to
-                </p>
+        {/* Right Form: Product Assignments */}
+        <div className="bg-surface-card rounded-card border border-border p-6 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-border">
+            <h3 className="text-[15px] font-semibold text-text-primary">
+              Assigned Products
+            </h3>
+            <span className="text-[12px] font-mono text-text-muted">
+              {assignedProductIds.size} linked
+            </span>
+          </div>
+
+          <p className="text-[12px] text-text-secondary mb-3">
+            Select products subject to this tax rule during invoice generation:
+          </p>
+
+          <div className="flex-1 max-h-80 overflow-y-auto space-y-1.5 pr-1 border border-border rounded-input p-2 mb-4 bg-surface-canvas">
+            {allProducts.map((p) => {
+              const isChecked = assignedProductIds.has(p.id);
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => toggleProductAssignment(p.id)}
+                  className={`flex items-center justify-between p-2 rounded-btn text-[12px] cursor-pointer transition-colors ${
+                    isChecked
+                      ? "bg-surface-card text-text-primary font-medium border border-primary-accent/40 shadow-xs"
+                      : "text-text-secondary hover:bg-surface-card/60"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 truncate pr-2">
+                    {isChecked ? (
+                      <CheckSquare className="w-4 h-4 text-primary-accent shrink-0" />
+                    ) : (
+                      <Square className="w-4 h-4 text-text-muted shrink-0" />
+                    )}
+                    <span className="truncate">{p.name}</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-text-muted shrink-0">
+                    {p.sku}
+                  </span>
+                </div>
+              );
+            })}
+            {allProducts.length === 0 && (
+              <div className="text-center py-6 text-[12px] text-text-muted">
+                No products found in catalog.
               </div>
-              <span className="text-xs font-mono font-semibold bg-brand-50 text-brand-700 px-2.5 py-1 rounded-full">
-                {assignedProductIds.size} selected
-              </span>
-            </div>
-
-            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-              {allProducts.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">No products available in catalog.</p>
-              ) : (
-                allProducts.map((prod) => {
-                  const isChecked = assignedProductIds.has(prod.id);
-                  return (
-                    <div
-                      key={prod.id}
-                      onClick={() => toggleProductAssignment(prod.id)}
-                      className={`p-3 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition ${
-                        isChecked
-                          ? "bg-brand-50/60 border-brand-200 text-brand-900 font-medium"
-                          : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        {isChecked ? (
-                          <CheckSquare className="w-4 h-4 text-brand-600 shrink-0" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-300 shrink-0" />
-                        )}
-                        <div>
-                          <div className="font-semibold">{prod.name}</div>
-                          <div className="text-[11px] font-mono text-slate-400">{prod.sku}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[11px] font-mono text-slate-500">
-                          Base: ₹{(Number(prod.baseSellingPriceMinor) / 100).toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            )}
           </div>
 
-          <div className="pt-4 mt-6 border-t border-slate-100 flex justify-end">
-            <button
-              type="button"
-              onClick={handleSaveProductAssignments}
-              disabled={savingProducts}
-              className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50"
-            >
-              <Save className="w-3.5 h-3.5 mr-1.5" />
-              {savingProducts ? "Updating Assignments..." : "Save Product Assignments"}
-            </button>
-          </div>
+          <button
+            onClick={handleSaveProductAssignments}
+            disabled={savingProducts}
+            className="w-full inline-flex items-center justify-center px-4 py-2 text-[12px] font-medium rounded-btn border border-border bg-surface-card hover:bg-surface-canvas text-text-primary transition-colors disabled:opacity-50 shadow-xs"
+          >
+            <Check className="w-3.5 h-3.5 mr-1.5 text-primary-accent" />
+            {savingProducts ? "Saving..." : "Update Product Mappings"}
+          </button>
         </div>
       </div>
     </DashboardShell>

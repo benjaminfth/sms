@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { MoneyDisplay } from "@/components/shared/MoneyDisplay";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
-import { SubscriptionWithDetailsDTO, SubscriptionStatus } from "@sms/shared";
+import { SubscriptionWithDetailsDTO, SubscriptionStatus, formatMinorToCurrency } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -22,6 +22,7 @@ import {
   Receipt,
   FileText,
   Activity,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function SubscriptionDetailsPage() {
@@ -68,14 +69,17 @@ export default function SubscriptionDetailsPage() {
       await api.post(`/subscriptions/${id}/${actionType}`);
       fetchSubscription();
     } catch (err: any) {
-      alert(err.message || `Failed to ${actionType} subscription`);
+      setError(err.message || `Failed to ${actionType} subscription`);
     }
   };
 
   if (loading) {
     return (
       <DashboardShell>
-        <div className="py-20 text-center text-slate-400">Loading subscription details...</div>
+        <div className="py-20 text-center text-[#94A3B8]">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#315CF5] border-t-transparent" />
+          <p className="mt-2 text-[12px]">Loading subscription telemetry...</p>
+        </div>
       </DashboardShell>
     );
   }
@@ -83,7 +87,7 @@ export default function SubscriptionDetailsPage() {
   if (error || !subscription) {
     return (
       <DashboardShell>
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 p-6 rounded-xl">
+        <div className="bg-[#FDEDED] border border-[#F8C6C6] text-[#D14343] p-6 rounded-[10px] text-[13px]">
           {error || "Subscription not found"}
         </div>
       </DashboardShell>
@@ -92,240 +96,220 @@ export default function SubscriptionDetailsPage() {
 
   return (
     <DashboardShell>
+      <div className="mb-4">
+        <Link
+          href="/admin/subscriptions"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+          Back to Subscriptions
+        </Link>
+      </div>
+
       <PageHeader
         title={subscription.subscriptionNumber}
-        description={`Provisioned on ${formatDate(subscription.createdAt)}`}
+        description={`Contract provisioned on ${formatDate(subscription.createdAt)}`}
+        badge={<StatusBadge status={subscription.status} />}
       >
         <div className="flex items-center space-x-2">
-            <Link
-              href="/admin/subscriptions"
-              className="inline-flex items-center px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 mr-2"
+          {subscription.status === SubscriptionStatus.ACTIVE && (
+            <button
+              onClick={() =>
+                setConfirmDialog({
+                  isOpen: true,
+                  title: "Pause Subscription",
+                  description: `Pause subscription ${subscription.subscriptionNumber}? No invoices will be generated while paused.`,
+                  action: () => handleAction("pause"),
+                })
+              }
+              className="inline-flex items-center px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium text-[#C58A24] bg-[#FDF8ED] hover:bg-[#F6E2B8] border border-[#F6E2B8] transition"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              All Subscriptions
-            </Link>
+              <Pause className="w-3.5 h-3.5 mr-1.5" />
+              Pause Contract
+            </button>
+          )}
 
-            {subscription.status === SubscriptionStatus.ACTIVE && (
-              <button
-                onClick={() =>
-                  setConfirmDialog({
-                    isOpen: true,
-                    title: "Pause Subscription",
-                    description: `Pause subscription ${subscription.subscriptionNumber}? No invoices will be generated while paused.`,
-                    action: () => handleAction("pause"),
-                  })
-                }
-                className="inline-flex items-center px-3.5 py-2 border border-amber-300 rounded-lg text-sm font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 shadow-sm"
-              >
-                <Pause className="w-4 h-4 mr-1.5" />
-                Pause Subscription
-              </button>
-            )}
+          {subscription.status === SubscriptionStatus.PAUSED && (
+            <button
+              onClick={() =>
+                setConfirmDialog({
+                  isOpen: true,
+                  title: "Resume Subscription",
+                  description: `Resume subscription ${subscription.subscriptionNumber}? Recurring billing schedule will activate.`,
+                  action: () => handleAction("resume"),
+                })
+              }
+              className="inline-flex items-center px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium text-white bg-[#16865B] hover:bg-[#126b48] shadow-xs transition"
+            >
+              <Play className="w-3.5 h-3.5 mr-1.5" />
+              Resume Contract
+            </button>
+          )}
 
-            {subscription.status === SubscriptionStatus.PAUSED && (
-              <button
-                onClick={() =>
-                  setConfirmDialog({
-                    isOpen: true,
-                    title: "Resume Subscription",
-                    description: `Resume subscription ${subscription.subscriptionNumber}? Billing cycle will resume.`,
-                    action: () => handleAction("resume"),
-                  })
-                }
-                className="inline-flex items-center px-3.5 py-2 border border-emerald-300 rounded-lg text-sm font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 shadow-sm"
-              >
-                <Play className="w-4 h-4 mr-1.5" />
-                Resume Subscription
-              </button>
-            )}
-
-            {subscription.status !== SubscriptionStatus.CANCELLED && (
-              <button
-                onClick={() =>
-                  setConfirmDialog({
-                    isOpen: true,
-                    title: "Cancel Subscription",
-                    description: `Cancel subscription ${subscription.subscriptionNumber}? It will not generate any recurring invoices in future cycles.`,
-                    action: () => handleAction("cancel"),
-                  })
-                }
-                className="inline-flex items-center px-3.5 py-2 border border-rose-300 rounded-lg text-sm font-medium text-rose-800 bg-rose-50 hover:bg-rose-100 shadow-sm"
-              >
-                <XCircle className="w-4 h-4 mr-1.5" />
-                Cancel Subscription
-              </button>
-            )}
-          </div>
-      </PageHeader>
-
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Customer</span>
-            <Building className="w-4 h-4 text-slate-400" />
-          </div>
-          <p className="font-semibold text-slate-900 text-sm">{subscription.customer?.fullName}</p>
-          <p className="text-xs text-slate-500">{subscription.customer?.companyName || "Individual"}</p>
-          <p className="text-xs text-slate-400">{subscription.customer?.email}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status & Interval</span>
-            <StatusBadge status={subscription.status} />
-          </div>
-          <p className="font-semibold text-slate-900 text-sm uppercase font-mono">
-            {subscription.intervalCount > 1 ? `${subscription.intervalCount} ` : ""}{subscription.billingInterval}
-          </p>
-          <p className="text-xs text-slate-500">Currency: {subscription.currency}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Current Period</span>
-            <Calendar className="w-4 h-4 text-slate-400" />
-          </div>
-          <div className="text-xs font-mono text-slate-700 space-y-0.5">
-            <div>From: {formatDate(subscription.currentPeriodStart)}</div>
-            <div>To: {formatDate(subscription.currentPeriodEnd)}</div>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Next Billing Date</span>
-            <Activity className="w-4 h-4 text-slate-400" />
-          </div>
-          <p className="text-lg font-bold text-slate-900 font-mono">
-            {formatDate(subscription.nextBillingDate)}
-          </p>
-          {subscription.cancelledAt && (
-            <p className="text-xs text-rose-600">
-              Cancelled: {formatDate(subscription.cancelledAt)}
-            </p>
+          {subscription.status !== SubscriptionStatus.CANCELLED && (
+            <button
+              onClick={() =>
+                setConfirmDialog({
+                  isOpen: true,
+                  title: "Cancel Subscription",
+                  description: `Cancel subscription ${subscription.subscriptionNumber}? It will not generate future invoices.`,
+                  action: () => handleAction("cancel"),
+                })
+              }
+              className="inline-flex items-center px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium text-[#D14343] bg-white border border-[#F8C6C6] hover:bg-[#FDEDED] transition"
+            >
+              <XCircle className="w-3.5 h-3.5 mr-1.5" />
+              Cancel Contract
+            </button>
           )}
         </div>
-      </div>
+      </PageHeader>
 
-      {/* Subscription Line Items */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <h3 className="text-sm font-semibold text-slate-800">Subscribed Items & Pricing</h3>
-        </div>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
-              <th className="py-3 px-4">Product / Item</th>
-              <th className="py-3 px-4 text-right">Quantity</th>
-              <th className="py-3 px-4 text-right">Unit Price</th>
-              <th className="py-3 px-4 text-right">Recurring Subtotal</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {subscription.items.map((it: any) => {
-              const qty = parseFloat(it.quantity) || 1.0;
-              const unit = BigInt(it.unitPriceMinor || "0");
-              const lineTotal = (unit * BigInt(Math.round(qty * 1000))) / BigInt(1000);
-
-              return (
-                <tr key={it.id} className="hover:bg-slate-50/60">
-                  <td className="py-3.5 px-4">
-                    <p className="font-semibold text-slate-900">{it.product?.name}</p>
-                    {it.productVariant && (
-                      <span className="text-xs text-slate-500">
-                        Variant: {it.productVariant.name}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono text-slate-700">
-                    {qty.toFixed(2)}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono text-slate-700">
-                    <MoneyDisplay amountMinor={it.unitPriceMinor} currency={subscription.currency} />
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-900">
-                    <MoneyDisplay amountMinor={lineTotal.toString()} currency={subscription.currency} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Associated Invoices */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Receipt className="w-4 h-4 text-slate-600" />
-            <h3 className="text-sm font-semibold text-slate-800">Generated Billing Invoices</h3>
+      {/* Overview Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Customer</span>
+            <Building className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          <span className="text-xs text-slate-500">
-            {subscription.invoices?.length || 0} invoice(s)
-          </span>
+          <p className="font-semibold text-[#172033] text-[14px] truncate">
+            {subscription.customer?.fullName}
+          </p>
+          <p className="text-[12px] text-[#64748B] truncate mt-0.5">
+            {subscription.customer?.companyName || "Individual Account"}
+          </p>
         </div>
 
-        {subscription.invoices && subscription.invoices.length > 0 ? (
-          <table className="w-full text-left border-collapse">
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Billing Interval</span>
+            <Activity className="w-3.5 h-3.5 text-[#94A3B8]" />
+          </div>
+          <p className="font-semibold text-[#172033] text-[14px] font-mono uppercase">
+            {subscription.intervalCount > 1 ? `${subscription.intervalCount} ` : ""}{subscription.billingInterval}
+          </p>
+          <p className="text-[12px] text-[#64748B] mt-0.5">Currency: {subscription.currency}</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Current Period</span>
+            <Calendar className="w-3.5 h-3.5 text-[#94A3B8]" />
+          </div>
+          <p className="font-mono text-[12px] text-[#172033]">
+            {formatDate(subscription.currentPeriodStart)} → {formatDate(subscription.currentPeriodEnd)}
+          </p>
+          <p className="text-[11px] text-[#16865B] font-medium mt-1">In Cycle</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Next Billing Run</span>
+            <Calendar className="w-3.5 h-3.5 text-[#94A3B8]" />
+          </div>
+          <p className="font-semibold text-[#172033] text-[14px] font-mono">
+            {formatDate(subscription.nextBillingDate)}
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-0.5">Automated invoice trigger</p>
+        </div>
+      </div>
+
+      {/* Subscription Items Table */}
+      <div className="bg-white rounded-[10px] border border-[#E5EAF1] shadow-xs overflow-hidden mb-6">
+        <div className="p-4 border-b border-[#E5EAF1]">
+          <h2 className="text-[14px] font-semibold text-[#172033]">Provisioned Services & Add-ons</h2>
+          <p className="text-[12px] text-[#64748B] mt-0.5">Components billed in this subscription contract</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-[13px]">
             <thead>
-              <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
-                <th className="py-3 px-4">Invoice #</th>
-                <th className="py-3 px-4">Billing Period</th>
-                <th className="py-3 px-4">Issue Date</th>
-                <th className="py-3 px-4 text-right">Total</th>
-                <th className="py-3 px-4 text-right">Balance Due</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Action</th>
+              <tr className="bg-[#F8FAFC] border-b border-[#E5EAF1] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                <th className="py-2.5 px-4">Item Name</th>
+                <th className="py-2.5 px-4">SKU / Variant</th>
+                <th className="py-2.5 px-4 text-right">Quantity</th>
+                <th className="py-2.5 px-4 text-right">Unit Price</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {subscription.invoices.map((inv: any) => (
-                <tr key={inv.id} className="hover:bg-slate-50/60">
-                  <td className="py-3 px-4 font-semibold text-brand-600 font-mono">
-                    <Link href={`/admin/invoices/${inv.id}`}>{inv.invoiceNumber}</Link>
+            <tbody className="divide-y divide-[#E5EAF1]">
+              {subscription.items.map((it: any) => (
+                <tr key={it.id} className="hover:bg-[#F8FAFC]">
+                  <td className="py-3 px-4 font-medium text-[#172033]">
+                    {it.product?.name || "Service Line"}
                   </td>
-                  <td className="py-3 px-4 text-xs font-mono text-slate-600">
-                    {inv.billingPeriodStart ? formatDate(inv.billingPeriodStart) : "—"} →{" "}
-                    {inv.billingPeriodEnd ? formatDate(inv.billingPeriodEnd) : "—"}
+                  <td className="py-3 px-4 text-[12px] font-mono text-[#64748B]">
+                    {it.product?.sku} {it.productVariant ? `(${it.productVariant.name})` : ""}
                   </td>
-                  <td className="py-3 px-4 text-xs font-mono text-slate-600">
-                    {formatDate(inv.createdAt)}
+                  <td className="py-3 px-4 text-right font-mono text-[#64748B]">
+                    {parseFloat(it.quantity).toFixed(2)}
                   </td>
-                  <td className="py-3 px-4 text-right font-semibold text-slate-900 font-mono">
-                    <MoneyDisplay amountMinor={inv.totalAmountMinor} currency={inv.currency} />
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-slate-700">
-                    <MoneyDisplay amountMinor={inv.balanceDueMinor} currency={inv.currency} />
-                  </td>
-                  <td className="py-3 px-4">
-                    <StatusBadge status={inv.status} />
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <Link
-                      href={`/admin/invoices/${inv.id}`}
-                      className="text-xs font-medium text-slate-600 hover:text-brand-600 underline"
-                    >
-                      View
-                    </Link>
+                  <td className="py-3 px-4 text-right font-mono font-medium text-[#172033]">
+                    {formatMinorToCurrency(it.unitPriceMinor, subscription.currency)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        ) : (
-          <div className="p-8 text-center text-slate-400 text-xs">
-            No invoices generated yet. Invoices will be created automatically when billing is executed.
-          </div>
-        )}
+        </div>
       </div>
+
+      {/* Invoices History Table */}
+      {subscription.invoices && subscription.invoices.length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#E5EAF1] shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-[#E5EAF1]">
+            <h2 className="text-[14px] font-semibold text-[#172033]">Associated Invoices</h2>
+            <p className="text-[12px] text-[#64748B] mt-0.5">Billing cycle invoices generated under this contract</p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[12px]">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E5EAF1] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                  <th className="py-2.5 px-4">Invoice #</th>
+                  <th className="py-2.5 px-4">Due Date</th>
+                  <th className="py-2.5 px-4 text-right">Total</th>
+                  <th className="py-2.5 px-4 text-right">Balance Due</th>
+                  <th className="py-2.5 px-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5EAF1]">
+                {subscription.invoices.map((inv: any) => (
+                  <tr key={inv.id} className="hover:bg-[#F8FAFC]">
+                    <td className="py-2.5 px-4 font-mono font-medium">
+                      <Link
+                        href={`/admin/invoices/${inv.id}`}
+                        className="text-[#315CF5] hover:underline"
+                      >
+                        {inv.invoiceNumber}
+                      </Link>
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[#64748B]">{formatDate(inv.dueDate)}</td>
+                    <td className="py-2.5 px-4 text-right font-mono text-[#172033]">
+                      <MoneyDisplay amountMinor={inv.totalAmountMinor} currency={inv.currency} />
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono text-[#C58A24]">
+                      <MoneyDisplay amountMinor={inv.balanceDueMinor} currency={inv.currency} />
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      <StatusBadge status={inv.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
         description={confirmDialog.description}
-        onConfirm={confirmDialog.action}
-        onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={async () => {
+          await confirmDialog.action();
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        }}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
     </DashboardShell>
   );

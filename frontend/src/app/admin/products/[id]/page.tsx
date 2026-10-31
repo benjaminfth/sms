@@ -76,128 +76,165 @@ export default function EditProductPage() {
   if (loading) {
     return (
       <DashboardShell>
-        <div className="p-8 text-center text-slate-500">Loading product...</div>
+        <div className="p-12 text-center text-[#94A3B8]">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#315CF5] border-t-transparent" />
+          <p className="mt-2 text-[12px]">Loading product details...</p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  if (!product) {
+    return (
+      <DashboardShell>
+        <div className="p-8 text-center bg-white border border-[#E5EAF1] rounded-[10px]">
+          <p className="text-[14px] font-medium text-[#172033]">Product not found</p>
+          <Link
+            href="/admin/products"
+            className="mt-3 inline-block text-[13px] text-[#315CF5] hover:underline"
+          >
+            Back to Products
+          </Link>
+        </div>
       </DashboardShell>
     );
   }
 
   return (
     <DashboardShell>
-      <PageHeader
-        title={product ? `Edit: ${product.name}` : "Edit Product"}
-        description={`SKU: ${product?.sku}`}
-      >
+      <div className="mb-4">
         <Link
           href="/admin/products"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Catalog
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+          Back to Products
         </Link>
-      </PageHeader>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-medium">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">
-              Product details saved successfully.
-            </div>
-          )}
+      <PageHeader
+        title={`Edit: ${product.name}`}
+        description={`SKU: ${product.sku} • Manage pricing and availability`}
+        badge={<StatusBadge status={product.isActive ? "ACTIVE" : "INACTIVE"} />}
+      />
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">Product Name</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
+      {error && (
+        <div className="mb-6 p-3 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
+          {error}
+        </div>
+      )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">Description</label>
-              <textarea
-                rows={3}
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
+      {success && (
+        <div className="mb-6 p-3 bg-[#EDF7F2] text-[#16865B] border border-[#C7E8D8] rounded-[8px] text-[12px] font-medium">
+          Product updated successfully.
+        </div>
+      )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
-                Base Selling Price (Paise)
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.baseSellingPriceMinor}
-                onChange={(e) => setFormData({ ...formData, baseSellingPriceMinor: e.target.value })}
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
+      <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs space-y-4">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1]">
+            Product Details
+          </h2>
 
-            <div className="flex items-center space-x-2 pt-2">
+          <div>
+            <label className="block text-[12px] font-medium text-[#172033] mb-1">
+              Product Name <span className="text-[#D14343]">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-medium text-[#172033] mb-1">
+              Description
+            </label>
+            <textarea
+              rows={3}
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-medium text-[#172033] mb-1">
+              Base Selling Price (Paise) <span className="text-[#D14343]">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.baseSellingPriceMinor}
+              onChange={(e) => setFormData({ ...formData, baseSellingPriceMinor: e.target.value })}
+              className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
+            />
+            <span className="text-[11px] text-[#64748B] mt-1 block">
+              ₹{(Number(formData.baseSellingPriceMinor || 0) / 100).toLocaleString("en-IN")}
+            </span>
+          </div>
+
+          <div className="pt-2">
+            <label className="flex items-center space-x-2 text-[13px] text-[#172033] cursor-pointer">
               <input
                 type="checkbox"
-                id="isActive"
                 checked={formData.isActive}
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                className="rounded-[4px] border-[#CBD5E1] text-[#315CF5] focus:ring-[#315CF5]"
               />
-              <label htmlFor="isActive" className="text-sm font-medium text-slate-700 cursor-pointer">
-                Product is active for new sales
-              </label>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition"
-              >
-                <Save className="w-3.5 h-3.5 mr-1.5" />
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Existing Variants Sidebar */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs h-fit">
-          <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center space-x-2">
-            <Tag className="w-4 h-4 text-brand-600" />
-            <span>Product Variants</span>
-          </h3>
-          <div className="space-y-2">
-            {product?.variants && product.variants.length > 0 ? (
-              product.variants.map((v) => (
-                <div key={v.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-                  <div className="flex justify-between items-start">
-                    <span className="font-semibold text-slate-900">{v.name}</span>
-                    <StatusBadge status={v.isActive ? "ACTIVE" : "INACTIVE"} />
-                  </div>
-                  <div className="mt-1 flex justify-between items-center text-slate-500">
-                    <span className="font-mono text-[11px]">{v.sku}</span>
-                    <span className="text-emerald-600 font-semibold">
-                      +<MoneyDisplay amountMinor={v.priceAdjustmentMinor} />
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-400 italic">No variants configured.</p>
-            )}
+              <span className="font-medium">Active for new subscriptions and quotations</span>
+            </label>
           </div>
         </div>
-      </div>
+
+        {/* Existing Variants Display */}
+        {product.variants && product.variants.length > 0 && (
+          <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+            <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1] mb-3">
+              Configured Variants ({product.variants.length})
+            </h2>
+            <div className="space-y-2">
+              {product.variants.map((v) => (
+                <div
+                  key={v.id}
+                  className="flex items-center justify-between p-2.5 bg-[#F8FAFC] rounded-[8px] border border-[#E5EAF1] text-[12px]"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Tag className="w-3.5 h-3.5 text-[#94A3B8]" />
+                    <span className="font-medium text-[#172033]">{v.name}</span>
+                    <span className="font-mono text-[11px] text-[#64748B] bg-white px-1.5 py-0.5 rounded border border-[#E5EAF1]">
+                      {v.sku}
+                    </span>
+                  </div>
+                  <span className="font-mono text-[#16865B] font-medium">
+                    +₹{(Number(v.priceAdjustmentMinor) / 100).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end space-x-2.5">
+          <Link
+            href="/admin/products"
+            className="px-4 py-2 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px] transition"
+          >
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs transition flex items-center space-x-1.5"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{saving ? "Saving..." : "Save Changes"}</span>
+          </button>
+        </div>
+      </form>
     </DashboardShell>
   );
 }

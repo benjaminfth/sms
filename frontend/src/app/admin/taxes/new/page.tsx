@@ -78,30 +78,31 @@ export default function CreateTaxPage() {
   return (
     <DashboardShell>
       <PageHeader
-        title="Create New Tax Rule"
-        description="Define configurable tax rates and statutory GST rules for products and invoices"
-      >
-        <Link
-          href="/admin/taxes"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition"
-        >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-          Back to Taxes
-        </Link>
-      </PageHeader>
+        title="Create Tax Rate"
+        description="Define statutory tax rates and GST calculation rules applied to products and invoices"
+        actions={
+          <Link
+            href="/admin/taxes"
+            className="inline-flex items-center px-3 py-1.5 border border-border rounded-btn text-[13px] font-medium text-text-primary bg-surface-card hover:bg-surface-canvas transition-colors shadow-xs"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+            Back to Taxes
+          </Link>
+        }
+      />
 
-      <div className="max-w-2xl bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
+      <div className="max-w-2xl bg-surface-card rounded-card border border-border p-6 shadow-xs">
         {error && (
-          <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 text-xs">
+          <div className="mb-5 p-3 rounded-btn bg-status-danger/10 border border-status-danger/20 text-[12px] text-status-danger font-medium flex items-center">
             <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Tax Name <span className="text-red-500">*</span>
+            <label className="block text-[12px] font-medium text-text-primary mb-1">
+              Tax Name *
             </label>
             <input
               type="text"
@@ -109,16 +110,16 @@ export default function CreateTaxPage() {
               placeholder="e.g. Goods & Services Tax (18%)"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full text-xs border border-slate-200 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full text-[13px] border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
             />
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-text-muted mt-1">
               Descriptive title displayed on customer invoices and quotations.
             </p>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Tax Code <span className="text-red-500">*</span>
+            <label className="block text-[12px] font-medium text-text-primary mb-1">
+              Tax Code *
             </label>
             <input
               type="text"
@@ -126,17 +127,14 @@ export default function CreateTaxPage() {
               placeholder="e.g. GST-18, CGST-9, SGST-9, IGST-18"
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-              className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full text-[13px] font-mono border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
             />
-            <p className="text-[11px] text-slate-400 mt-1">
-              Unique statutory code used in financial breakdowns and tax reconciliation.
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Rate Percentage (%)
+              <label className="block text-[12px] font-medium text-text-primary mb-1">
+                Tax Rate (%) *
               </label>
               <div className="relative">
                 <input
@@ -144,61 +142,63 @@ export default function CreateTaxPage() {
                   step="0.01"
                   min="0"
                   max="100"
+                  required
                   value={formData.ratePercent}
                   onChange={(e) => handlePercentChange(e.target.value)}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full text-[13px] font-mono border border-border rounded-input px-3.5 py-2 pr-8 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-text-muted">
                   %
                 </span>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Rate in Basis Points (bps)
+              <label className="block text-[12px] font-medium text-text-primary mb-1">
+                Basis Points (bps)
               </label>
               <input
                 type="number"
                 min="0"
                 max="10000"
                 value={formData.rateBasisPoints}
-                onChange={(e) => handleBpsChange(parseInt(e.target.value, 10) || 0)}
-                className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                onChange={(e) => handleBpsChange(parseInt(e.target.value) || 0)}
+                className="w-full text-[13px] font-mono border border-border rounded-input px-3.5 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
               />
-              <p className="text-[10px] text-slate-400 mt-1">
-                1% = 100 bps (e.g. 18% = 1800 bps)
+              <p className="text-[11px] text-text-muted mt-1">
+                1% = 100 bps (e.g. 1800 bps = 18.00%)
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 pt-2">
-            <input
-              type="checkbox"
-              id="isActive"
-              checked={formData.isActive}
-              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-            />
-            <label htmlFor="isActive" className="text-xs font-medium text-slate-700">
-              Active tax rule (available for newly generated quotations and subscription invoices)
+          <div className="pt-2">
+            <label className="flex items-center space-x-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="w-4 h-4 rounded text-primary-accent border-border focus:ring-primary-accent"
+              />
+              <span className="text-[13px] font-medium text-text-primary">
+                Active statutory rule (available to link with products)
+              </span>
             </label>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+          <div className="pt-4 border-t border-border flex justify-end space-x-2">
             <Link
               href="/admin/taxes"
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              className="px-4 py-2 text-[12px] font-medium text-text-secondary hover:text-text-primary"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 text-[12px] font-medium rounded-btn text-white bg-primary-accent hover:bg-primary-hover disabled:opacity-50 transition-colors shadow-xs"
             >
-              <Save className="w-4 h-4 mr-1.5" />
-              {saving ? "Saving Tax..." : "Save Tax Configuration"}
+              <Save className="w-3.5 h-3.5 mr-1.5" />
+              {saving ? "Saving..." : "Create Tax Rate"}
             </button>
           </div>
         </form>

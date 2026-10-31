@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
 import { ProductDTO, PaginationMeta } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
-import { Search, Plus, Archive, Edit, Layers, Tag, X } from "lucide-react";
+import { Search, Plus, Archive, Edit, Layers, Tag, X, Check } from "lucide-react";
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<ProductDTO[]>([]);
@@ -100,45 +100,64 @@ export default function AdminProductsPage() {
 
   const columns: Column<ProductDTO>[] = [
     {
-      header: "Product Details",
+      header: "Product & SKU",
       cell: (item) => (
-        <div>
+        <div className="min-w-0 max-w-xs">
           <div className="flex items-center space-x-2">
-            <span className="font-semibold text-slate-900">{item.name}</span>
-            <span className="text-[10px] bg-slate-100 font-mono px-1.5 py-0.5 rounded text-slate-600">
+            <Link
+              href={`/admin/products/${item.id}`}
+              className="font-medium text-[#172033] hover:text-[#315CF5] truncate block"
+            >
+              {item.name}
+            </Link>
+            <span className="text-[10px] bg-[#F1F5F9] font-mono px-1.5 py-0.5 rounded-[4px] text-[#64748B] border border-[#E5EAF1] shrink-0">
               {item.sku}
             </span>
           </div>
           {item.description && (
-            <p className="text-xs text-slate-400 truncate max-w-xs mt-0.5">{item.description}</p>
+            <p className="text-[11px] text-[#64748B] truncate mt-0.5">{item.description}</p>
           )}
         </div>
       ),
     },
     {
-      header: "Base Price",
+      header: "Type",
       cell: (item) => (
-        <span className="font-semibold text-slate-900">
+        <span className="text-[11px] font-medium text-[#64748B] uppercase tracking-wider bg-[#F8FAFC] px-2 py-0.5 rounded-[4px] border border-[#E5EAF1]">
+          {item.productType}
+        </span>
+      ),
+    },
+    {
+      header: "Sales Price",
+      align: "right",
+      cell: (item) => (
+        <span className="font-mono font-medium text-[#172033]">
           <MoneyDisplay amountMinor={item.baseSellingPriceMinor} currency={item.currency} />
         </span>
       ),
     },
     {
-      header: "Variants (Surcharges)",
+      header: "Variants",
       cell: (item) => (
         <div className="space-y-1">
           {item.variants && item.variants.length > 0 ? (
-            item.variants.map((v) => (
-              <div key={v.id} className="text-xs flex items-center space-x-1.5">
-                <Tag className="w-3 h-3 text-slate-400" />
-                <span className="font-medium text-slate-700">{v.name}:</span>
-                <span className="text-emerald-600 font-semibold">
-                  +<MoneyDisplay amountMinor={v.priceAdjustmentMinor} />
+            <div className="flex flex-wrap gap-1">
+              {item.variants.map((v) => (
+                <span
+                  key={v.id}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] bg-[#F8FAFC] border border-[#E5EAF1] text-[11px] text-[#172033]"
+                  title={`+ ₹${(Number(v.priceAdjustmentMinor) / 100).toLocaleString("en-IN")}`}
+                >
+                  <span className="font-medium">{v.name}</span>
+                  <span className="text-[#16865B] font-mono ml-1 text-[10px]">
+                    +₹{(Number(v.priceAdjustmentMinor) / 100).toLocaleString("en-IN")}
+                  </span>
                 </span>
-              </div>
-            ))
+              ))}
+            </div>
           ) : (
-            <span className="text-xs text-slate-400 italic">No variants</span>
+            <span className="text-[12px] text-[#94A3B8] italic">No variants</span>
           )}
           {!item.isArchived && (
             <button
@@ -146,7 +165,7 @@ export default function AdminProductsPage() {
                 setVariantTarget(item);
                 setVariantForm({ sku: `${item.sku}-VAR`, name: "", surchargeMinor: "50000" });
               }}
-              className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 block mt-1"
+              className="text-[11px] font-medium text-[#315CF5] hover:text-[#2549D8] block mt-1"
             >
               + Add Variant
             </button>
@@ -163,16 +182,13 @@ export default function AdminProductsPage() {
       ),
     },
     {
-      header: "Created",
-      cell: (item) => <span className="text-xs text-slate-500">{formatDate(item.createdAt)}</span>,
-    },
-    {
       header: "Actions",
+      align: "right",
       cell: (item) => (
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-end space-x-1.5">
           <Link
             href={`/admin/products/${item.id}`}
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+            className="p-1.5 text-[#64748B] hover:text-[#172033] hover:bg-[#F8FAFC] rounded-[6px] transition"
             title="Edit Product"
           >
             <Edit className="w-3.5 h-3.5" />
@@ -180,7 +196,7 @@ export default function AdminProductsPage() {
           {!item.isArchived && (
             <button
               onClick={() => setArchiveTarget(item)}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-red-50 text-slate-400 hover:text-red-600 transition"
+              className="p-1.5 text-[#94A3B8] hover:text-[#D14343] hover:bg-[#FDEDED] rounded-[6px] transition"
               title="Archive Product"
             >
               <Archive className="w-3.5 h-3.5" />
@@ -194,12 +210,19 @@ export default function AdminProductsPage() {
   return (
     <DashboardShell>
       <PageHeader
-        title="Product Catalog"
-        description="Manage software offerings, base pricing, and surcharge variants"
+        title="Products"
+        description="Catalog of subscription offerings, service modules and surcharge variants."
+        badge={
+          pagination ? (
+            <span className="px-2 py-0.5 rounded-[5px] bg-[#F1F5F9] border border-[#E5EAF1] text-[11px] font-medium text-[#64748B]">
+              {pagination.total} Total
+            </span>
+          ) : undefined
+        }
       >
         <Link
           href="/admin/products/new"
-          className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition"
+          className="inline-flex items-center px-3.5 py-1.5 text-[13px] font-medium rounded-[8px] bg-[#315CF5] text-white hover:bg-[#2549D8] shadow-xs transition"
         >
           <Plus className="w-3.5 h-3.5 mr-1.5" />
           New Product
@@ -207,9 +230,9 @@ export default function AdminProductsPage() {
       </PageHeader>
 
       {/* Filter and Search Bar */}
-      <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-[10px] border border-[#E5EAF1] shadow-xs">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5" />
           <input
             type="text"
             value={search}
@@ -217,19 +240,19 @@ export default function AdminProductsPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search products by SKU or name..."
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-slate-900"
+            placeholder="Search by SKU or name..."
+            className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-[#F8FAFC] border border-[#E5EAF1] rounded-[8px] focus:bg-white focus:outline-hidden focus:border-[#315CF5] text-[#172033] transition"
           />
         </div>
 
-        <label className="flex items-center space-x-2 text-xs text-slate-600 cursor-pointer select-none">
+        <label className="flex items-center space-x-2 text-[12px] text-[#64748B] cursor-pointer select-none">
           <input
             type="checkbox"
             checked={includeArchived}
             onChange={(e) => setIncludeArchived(e.target.checked)}
-            className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            className="rounded-[4px] border-[#CBD5E1] text-[#315CF5] focus:ring-[#315CF5]"
           />
-          <span>Include Archived Products</span>
+          <span>Include archived catalog</span>
         </label>
       </div>
 
@@ -239,13 +262,15 @@ export default function AdminProductsPage() {
         pagination={pagination}
         onPageChange={(p) => setPage(p)}
         loading={loading}
+        emptyTitle="No products found"
+        emptyDescription="Create software products to define recurring plan bundles."
       />
 
-      {/* Archive Confirmation Dialog */}
+      {/* Confirm Archive Dialog */}
       <ConfirmDialog
         isOpen={!!archiveTarget}
         title="Archive Product"
-        description={`Are you sure you want to archive '${archiveTarget?.name}' (${archiveTarget?.sku})? This product will no longer be available for new quotations or subscriptions.`}
+        description={`Are you sure you want to archive "${archiveTarget?.name}"? It will no longer be available for new plans or quotes.`}
         confirmLabel="Archive"
         variant="danger"
         loading={archiveLoading}
@@ -257,86 +282,92 @@ export default function AdminProductsPage() {
       {variantTarget && (
         <div
           onClick={(e) => {
-            if (e.target === e.currentTarget) setVariantTarget(null);
+            if (e.target === e.currentTarget && !variantLoading) setVariantTarget(null);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs"
         >
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-[12px] max-w-md w-full p-6 shadow-dropdown border border-[#E5EAF1] animate-fade-in">
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#E5EAF1]">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Add Product Variant</h3>
-                <p className="text-xs text-slate-400">For product: {variantTarget.name}</p>
+                <h3 className="text-[16px] font-semibold text-[#172033]">Add Product Variant</h3>
+                <p className="text-[12px] text-[#64748B] mt-0.5">{variantTarget.name}</p>
               </div>
               <button
                 onClick={() => setVariantTarget(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-[#94A3B8] hover:text-[#172033] p-1 rounded-[6px]"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {variantError && (
-              <div className="mt-3 p-2.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium">
+              <div className="mt-4 p-2.5 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
                 {variantError}
               </div>
             )}
 
-            <form onSubmit={handleAddVariant} className="mt-4 space-y-3">
+            <form onSubmit={handleAddVariant} className="mt-4 space-y-3.5 text-[13px]">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">Variant Name</label>
-                <input
-                  type="text"
-                  required
-                  value={variantForm.name}
-                  onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })}
-                  placeholder="e.g. Advanced Module"
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">Variant SKU</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Variant SKU <span className="text-[#D14343]">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={variantForm.sku}
                   onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value })}
-                  placeholder="e.g. BL-PRO-ADV"
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                  placeholder="e.g. PROD-ENTERPRISE"
+                  className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">
-                  Surcharge Amount (in Paise / Minor Units)
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Variant Name <span className="text-[#D14343]">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  value={variantForm.surchargeMinor}
-                  onChange={(e) => setVariantForm({ ...variantForm, surchargeMinor: e.target.value })}
-                  placeholder="56000 for ₹560"
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                  value={variantForm.name}
+                  onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })}
+                  placeholder="e.g. 24/7 Dedicated Support"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
                 />
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  Example: 56000 paise = ₹560 surcharge. Added to base price via integer arithmetic.
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Surcharge (in Paise)
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={variantForm.surchargeMinor}
+                  onChange={(e) =>
+                    setVariantForm({ ...variantForm, surchargeMinor: e.target.value })
+                  }
+                  className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
+                />
+                <span className="text-[11px] text-[#64748B] mt-1 block">
+                  ₹{(Number(variantForm.surchargeMinor || 0) / 100).toLocaleString("en-IN")} additional charge
                 </span>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+              <div className="flex justify-end space-x-2 pt-4 border-t border-[#E5EAF1]">
                 <button
                   type="button"
                   onClick={() => setVariantTarget(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                  disabled={variantLoading}
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={variantLoading}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm"
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs"
                 >
-                  {variantLoading ? "Saving..." : "Add Variant"}
+                  {variantLoading ? "Adding..." : "Add Variant"}
                 </button>
               </div>
             </form>

@@ -6,12 +6,15 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, Column } from "@/components/tables/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { UserDTO, Role, PaginationMeta } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
 import { Plus, Shield, Search, UserCheck, X } from "lucide-react";
 import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
 
 export default function AdminStaffPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === Role.ADMIN;
   const [users, setUsers] = useState<UserDTO[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [page, setPage] = useState(1);
@@ -64,19 +67,14 @@ export default function AdminStaffPage() {
     setCreateError(null);
 
     try {
-      const res = await api.post("/users/staff", createForm);
+      const res = await api.post("/users", createForm);
       if (res.success) {
         setIsCreateOpen(false);
-        setCreateForm({
-          fullName: "",
-          email: "",
-          password: "",
-          role: Role.STAFF,
-        });
+        setCreateForm({ fullName: "", email: "", password: "", role: Role.STAFF });
         fetchUsers();
       }
     } catch (err: any) {
-      setCreateError(err.message || "Failed to create staff member");
+      setCreateError(err.message || "Failed to create staff account.");
     } finally {
       setCreateLoading(false);
     }
@@ -89,7 +87,7 @@ export default function AdminStaffPage() {
     setRoleError(null);
 
     try {
-      const res = await api.put(`/users/${editRoleUser.id}/role`, {
+      const res = await api.patch(`/users/${editRoleUser.id}/role`, {
         role: selectedRole,
       });
       if (res.success) {
@@ -97,7 +95,7 @@ export default function AdminStaffPage() {
         fetchUsers();
       }
     } catch (err: any) {
-      setRoleError(err.message || "Failed to update role");
+      setRoleError(err.message || "Failed to change user role.");
     } finally {
       setRoleLoading(false);
     }
@@ -105,50 +103,67 @@ export default function AdminStaffPage() {
 
   const columns: Column<UserDTO>[] = [
     {
-      header: "User Details",
+      header: "Staff Member",
       cell: (item) => (
-        <div>
-          <span className="font-semibold text-slate-900">{item.fullName}</span>
-          <p className="text-xs text-slate-400">{item.email}</p>
+        <div className="flex items-center space-x-2.5">
+          <div className="w-7 h-7 rounded-[6px] bg-[#172033] text-white flex items-center justify-center font-semibold text-xs shrink-0">
+            {item.fullName[0]?.toUpperCase() || "U"}
+          </div>
+          <div className="min-w-0">
+            <span className="font-medium text-[#172033] block truncate">{item.fullName}</span>
+            <span className="text-[11px] text-[#64748B] block truncate">{item.email}</span>
+          </div>
         </div>
       ),
     },
     {
-      header: "System Role",
+      header: "Role Permission",
       cell: (item) => {
-        let roleStyle = "bg-slate-100 text-slate-700";
-        if (item.role === Role.ADMIN) roleStyle = "bg-purple-100 text-purple-800 border-purple-200";
-        if (item.role === Role.STAFF) roleStyle = "bg-blue-100 text-blue-800 border-blue-200";
-        if (item.role === Role.CUSTOMER) roleStyle = "bg-emerald-100 text-emerald-800 border-emerald-200";
-
+        let badgeColor = "bg-[#F1F5F9] text-[#64748B] border-[#E5EAF1]";
+        if (item.role === Role.ADMIN) {
+          badgeColor = "bg-[#EFF4FE] text-[#315CF5] border-[#C8DEF6]";
+        } else if (item.role === Role.STAFF) {
+          badgeColor = "bg-[#EDF7F2] text-[#16865B] border-[#C7E8D8]";
+        }
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase border ${roleStyle}`}>
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-mono font-medium border ${badgeColor}`}
+          >
             {item.role}
           </span>
         );
       },
     },
     {
-      header: "Status",
+      header: "Account Status",
       cell: (item) => <StatusBadge status={item.isActive ? "ACTIVE" : "INACTIVE"} />,
     },
     {
-      header: "Member Since",
-      cell: (item) => <span className="text-xs text-slate-500">{formatDate(item.createdAt)}</span>,
+      header: "Creation Date",
+      cell: (item) => (
+        <span className="text-[12px] font-mono text-[#64748B]">
+          {formatDate(item.createdAt)}
+        </span>
+      ),
     },
     {
-      header: "Admin Actions",
-      cell: (item) => (
-        <button
-          onClick={() => {
-            setEditRoleUser(item);
-            setSelectedRole(item.role);
-          }}
-          className="text-xs font-semibold px-2.5 py-1 rounded bg-slate-50 border border-slate-200 text-brand-600 hover:text-brand-800"
-        >
-          Assign Role
-        </button>
-      ),
+      header: "Actions",
+      align: "right",
+      cell: (item) =>
+        isAdmin ? (
+          <button
+            onClick={() => {
+              setEditRoleUser(item);
+              setSelectedRole(item.role);
+              setRoleError(null);
+            }}
+            className="text-[12px] font-medium text-[#315CF5] hover:text-[#2549D8] px-2.5 py-1 rounded-[6px] hover:bg-[#EFF4FE] transition-colors"
+          >
+            Modify Role
+          </button>
+        ) : (
+          <span className="text-[11px] text-[#94A3B8]">Restricted</span>
+        ),
     },
   ];
 
@@ -156,20 +171,33 @@ export default function AdminStaffPage() {
     <DashboardShell>
       <PageHeader
         title="Staff & User Management"
-        description="Admin-only directory for provisioning internal operations accounts and managing role hierarchies"
+        description="Operator accounts, internal roles, and administrative authorization levels."
+        badge={
+          pagination ? (
+            <span className="px-2 py-0.5 rounded-[5px] bg-[#F1F5F9] border border-[#E5EAF1] text-[11px] font-medium text-[#64748B]">
+              {pagination.total} Users
+            </span>
+          ) : undefined
+        }
       >
-        <button
-          onClick={() => setIsCreateOpen(true)}
-          className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition"
-        >
-          <Plus className="w-3.5 h-3.5 mr-1.5" />
-          Create Staff Account
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => {
+              setIsCreateOpen(true);
+              setCreateError(null);
+            }}
+            className="inline-flex items-center px-3.5 py-1.5 text-[13px] font-medium rounded-[8px] bg-[#315CF5] text-white hover:bg-[#2549D8] shadow-xs transition"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Add Staff Member
+          </button>
+        )}
       </PageHeader>
 
-      <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Filter and Search Bar */}
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-[10px] border border-[#E5EAF1] shadow-xs">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5" />
           <input
             type="text"
             value={search}
@@ -178,7 +206,7 @@ export default function AdminStaffPage() {
               setPage(1);
             }}
             placeholder="Search by name or email..."
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-slate-900"
+            className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-[#F8FAFC] border border-[#E5EAF1] rounded-[8px] focus:bg-white focus:outline-hidden focus:border-[#315CF5] text-[#172033] transition"
           />
         </div>
       </div>
@@ -189,64 +217,75 @@ export default function AdminStaffPage() {
         pagination={pagination}
         onPageChange={(p) => setPage(p)}
         loading={loading}
+        emptyTitle="No staff members found"
+        emptyDescription="Create operator accounts to allow team members to access operational modules."
       />
 
       {/* Create Staff Modal */}
       {isCreateOpen && (
         <div
           onClick={(e) => {
-            if (e.target === e.currentTarget) setIsCreateOpen(false);
+            if (e.target === e.currentTarget && !createLoading) setIsCreateOpen(false);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs"
         >
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Create Operations Account</h3>
-              <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
+          <div className="bg-white rounded-[12px] max-w-md w-full p-6 shadow-dropdown border border-[#E5EAF1] animate-fade-in">
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#E5EAF1]">
+              <h3 className="text-[16px] font-semibold text-[#172033]">Create Operations Account</h3>
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                className="text-[#94A3B8] hover:text-[#172033] p-1 rounded-[6px]"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {createError && (
-              <div className="mt-3 p-2.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium">
+              <div className="mt-3.5 p-2.5 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
                 {createError}
               </div>
             )}
 
-            <form onSubmit={handleCreateStaff} className="mt-4 space-y-3">
+            <form onSubmit={handleCreateStaff} className="mt-4 space-y-3.5 text-[13px]">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">Staff Name</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Full Name <span className="text-[#D14343]">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={createForm.fullName}
                   onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
                   placeholder="e.g. Alex Miller"
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">Work Email</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Work Email <span className="text-[#D14343]">*</span>
+                </label>
                 <input
                   type="email"
                   required
                   value={createForm.email}
                   onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                  placeholder="staff@brightloop.demo"
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                  placeholder="alex@brightloop.demo"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">Temporary Password</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Temporary Password <span className="text-[#D14343]">*</span>
+                </label>
                 <input
                   type="password"
                   required
                   value={createForm.password}
                   onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
                   placeholder="Min 9 chars (e.g. Brightloop!2026)"
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 />
                 <PasswordRequirementsChecklist
                   password={createForm.password}
@@ -255,29 +294,29 @@ export default function AdminStaffPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">Role Level</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">Role Level</label>
                 <select
                   value={createForm.role}
                   onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as Role })}
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 >
-                  <option value={Role.STAFF}>STAFF (Catalog & Customer Operations)</option>
+                  <option value={Role.STAFF}>STAFF (Operational Management)</option>
                   <option value={Role.ADMIN}>ADMIN (Full Platform Authority)</option>
                 </select>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+              <div className="flex justify-end space-x-2 pt-4 border-t border-[#E5EAF1]">
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={createLoading}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm"
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs"
                 >
                   {createLoading ? "Creating..." : "Create Account"}
                 </button>
@@ -291,56 +330,61 @@ export default function AdminStaffPage() {
       {editRoleUser && (
         <div
           onClick={(e) => {
-            if (e.target === e.currentTarget) setEditRoleUser(null);
+            if (e.target === e.currentTarget && !roleLoading) setEditRoleUser(null);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs"
         >
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Change User Role</h3>
-              <button onClick={() => setEditRoleUser(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
+          <div className="bg-white rounded-[12px] max-w-sm w-full p-6 shadow-dropdown border border-[#E5EAF1] animate-fade-in">
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#E5EAF1]">
+              <h3 className="text-[16px] font-semibold text-[#172033]">Modify User Role</h3>
+              <button
+                onClick={() => setEditRoleUser(null)}
+                className="text-[#94A3B8] hover:text-[#172033] p-1 rounded-[6px]"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {roleError && (
-              <div className="mt-3 p-2.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium">
+              <div className="mt-3.5 p-2.5 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
                 {roleError}
               </div>
             )}
 
-            <form onSubmit={handleUpdateRole} className="mt-4 space-y-4">
-              <div>
-                <p className="text-xs text-slate-500 mb-1">Target Account:</p>
-                <p className="text-sm font-semibold text-slate-900">{editRoleUser.fullName}</p>
-                <p className="text-xs text-slate-400">{editRoleUser.email}</p>
+            <form onSubmit={handleUpdateRole} className="mt-4 space-y-4 text-[13px]">
+              <div className="bg-[#F8FAFC] p-3 rounded-[8px] border border-[#E5EAF1]">
+                <p className="text-[11px] font-medium text-[#64748B] mb-0.5">Account Target:</p>
+                <p className="font-semibold text-[#172033]">{editRoleUser.fullName}</p>
+                <p className="text-[11px] text-[#64748B]">{editRoleUser.email}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase">Assigned Role</label>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Assign Permission Level
+                </label>
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as Role)}
-                  className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 >
-                  <option value={Role.ADMIN}>ADMIN</option>
-                  <option value={Role.STAFF}>STAFF</option>
-                  <option value={Role.CUSTOMER}>CUSTOMER</option>
+                  <option value={Role.ADMIN}>ADMIN (Full Access)</option>
+                  <option value={Role.STAFF}>STAFF (Operational Modules)</option>
+                  <option value={Role.CUSTOMER}>CUSTOMER (Self-Service Portal)</option>
                 </select>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-end space-x-2 pt-3 border-t border-[#E5EAF1]">
                 <button
                   type="button"
                   onClick={() => setEditRoleUser(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={roleLoading}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm"
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs"
                 >
                   {roleLoading ? "Updating..." : "Update Role"}
                 </button>

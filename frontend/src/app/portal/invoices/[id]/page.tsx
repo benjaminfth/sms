@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   ArrowLeft,
   Receipt,
@@ -15,7 +16,6 @@ import {
   Clock,
   AlertTriangle,
   Calendar,
-  Sparkles,
   Smartphone,
   ShieldCheck,
   X,
@@ -64,16 +64,14 @@ export default function CustomerInvoiceDetailPage() {
 
       if (res.success && res.data) {
         setPaymentSuccessData(res.data);
-        // Refresh invoice data
-        const refreshed = await api.get<any>(`/portal/invoices/${id}`);
-        if (refreshed.success && refreshed.data) {
-          setInvoice(refreshed.data);
+        if (res.data.updatedInvoice) {
+          setInvoice(res.data.updatedInvoice);
         }
       } else {
-        alert(res.error?.message || "Payment failed to process");
+        alert(res.error?.message || "Payment simulation failed.");
       }
     } catch (err: any) {
-      alert(err.message || "An error occurred while processing payment");
+      alert(err.message || "An unexpected error occurred during payment processing.");
     } finally {
       setPaying(false);
     }
@@ -89,43 +87,10 @@ export default function CustomerInvoiceDetailPage() {
     });
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "PAID":
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-            Paid in Full
-          </span>
-        );
-      case "PARTIALLY_PAID":
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            <Clock className="w-3.5 h-3.5 mr-1" />
-            Partially Paid
-          </span>
-        );
-      case "OVERDUE":
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            <AlertTriangle className="w-3.5 h-3.5 mr-1" />
-            Overdue
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            <Clock className="w-3.5 h-3.5 mr-1" />
-            Open / Awaiting Payment
-          </span>
-        );
-    }
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-[400px] text-[13px] text-text-secondary">
+        Loading invoice document...
       </div>
     );
   }
@@ -133,14 +98,14 @@ export default function CustomerInvoiceDetailPage() {
   if (error || !invoice) {
     return (
       <div className="max-w-4xl mx-auto py-12 text-center">
-        <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-gray-900">Failed to load invoice</h2>
-        <p className="text-gray-500 mt-1">{error || "The requested invoice could not be found."}</p>
+        <AlertTriangle className="w-10 h-10 text-status-danger mx-auto mb-3" />
+        <h2 className="text-[18px] font-semibold text-text-primary">Failed to load invoice</h2>
+        <p className="text-[13px] text-text-secondary mt-1">{error || "The requested invoice could not be found."}</p>
         <Link
           href="/portal/invoices"
-          className="mt-6 inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90"
+          className="mt-5 inline-flex items-center px-4 py-2 rounded-btn text-[13px] font-medium text-white bg-primary-accent hover:bg-primary-hover shadow-xs"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back to Invoices
         </Link>
       </div>
@@ -150,7 +115,6 @@ export default function CustomerInvoiceDetailPage() {
   const balanceDue = Number(invoice.balanceDueMinor || 0);
   const isPayable = balanceDue > 0 && invoice.status !== "VOID" && invoice.status !== "CANCELLED";
 
-  // Parse tax breakdown snapshot if available
   let taxBreakdown: any[] = [];
   if (invoice.taxBreakdownSnapshot) {
     try {
@@ -168,17 +132,17 @@ export default function CustomerInvoiceDetailPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <Link
           href="/portal/invoices"
-          className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-900"
+          className="inline-flex items-center text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
         >
-          <ArrowLeft className="w-4 h-4 mr-1.5" />
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back to All Invoices
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
+            className="inline-flex items-center px-3.5 py-1.5 border border-border rounded-btn text-[13px] font-medium text-text-primary bg-surface-card hover:bg-surface-canvas shadow-xs transition-colors"
           >
-            <Printer className="w-4 h-4 mr-2" />
+            <Printer className="w-3.5 h-3.5 mr-1.5" />
             Print / Save PDF
           </button>
           {isPayable && (
@@ -187,9 +151,9 @@ export default function CustomerInvoiceDetailPage() {
                 setPaymentSuccessData(null);
                 setIsPayModalOpen(true);
               }}
-              className="inline-flex items-center px-5 py-2 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors"
+              className="inline-flex items-center px-4 py-1.5 rounded-btn text-[13px] font-medium text-white bg-primary-accent hover:bg-primary-hover shadow-xs transition-colors"
             >
-              <CreditCard className="w-4 h-4 mr-2" />
+              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
               Pay {formatINR(invoice.balanceDueMinor)}
             </button>
           )}
@@ -197,46 +161,50 @@ export default function CustomerInvoiceDetailPage() {
       </div>
 
       {/* Printable Invoice Container */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-8 sm:p-12 print:border-none print:shadow-none print:p-0">
+      <div className="bg-surface-card rounded-card border border-border shadow-xs overflow-hidden p-8 sm:p-12 print:border-none print:shadow-none print:p-0">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start pb-8 border-b border-gray-200 gap-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start pb-8 border-b border-border gap-6">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-lg">
-                B
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded-btn bg-primary-accent flex items-center justify-center text-white shadow-xs">
+                <div className="w-3.5 h-3.5 border-2 border-white rounded-[3px] rotate-45 flex items-center justify-center">
+                  <div className="w-1 h-1 bg-white rounded-full" />
+                </div>
               </div>
-              <span className="text-xl font-bold text-gray-900 tracking-tight">
-                Brightloop Software
+              <span className="text-[17px] font-semibold text-text-primary tracking-tight">
+                Brightloop SMS
               </span>
             </div>
-            <p className="text-xs text-gray-500">Subscription & Cloud Solutions</p>
-            <p className="text-xs text-gray-500 mt-1">GSTIN: 29AABCU9603R1ZM</p>
-            <p className="text-xs text-gray-500">support@brightloop.io | billing.brightloop.io</p>
+            <p className="text-[12px] text-text-secondary">Subscription & Billing Platform</p>
+            <p className="text-[11px] text-text-muted mt-0.5">GSTIN: 29AABCU9603R1ZM</p>
+            <p className="text-[11px] text-text-muted">support@brightloop.io | billing.brightloop.io</p>
           </div>
 
           <div className="text-left sm:text-right">
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">TAX INVOICE</h1>
-            <p className="text-sm font-semibold text-primary mt-1">{invoice.invoiceNumber}</p>
-            <div className="mt-2">{getStatusBadge(invoice.status)}</div>
+            <h1 className="text-[22px] font-semibold text-text-primary tracking-tight">TAX INVOICE</h1>
+            <p className="text-[13px] font-mono font-medium text-primary-accent mt-0.5">{invoice.invoiceNumber}</p>
+            <div className="mt-2">
+              <StatusBadge status={invoice.status} />
+            </div>
           </div>
         </div>
 
         {/* Invoice Metadata & Customer Info */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-8 border-b border-gray-200 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-6 border-b border-border text-[13px]">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-2">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-text-muted block mb-1.5">
               Billed To
             </span>
-            <p className="font-bold text-gray-900 text-base">{invoice.customer?.fullName}</p>
+            <p className="font-semibold text-text-primary text-[14px]">{invoice.customer?.fullName}</p>
             {invoice.customer?.companyName && (
-              <p className="text-gray-600 font-medium">{invoice.customer.companyName}</p>
+              <p className="text-text-secondary font-medium">{invoice.customer.companyName}</p>
             )}
-            <p className="text-gray-500 mt-1">{invoice.customer?.email}</p>
+            <p className="text-text-secondary mt-0.5">{invoice.customer?.email}</p>
             {invoice.customer?.phone && (
-              <p className="text-gray-500">{invoice.customer.phone}</p>
+              <p className="text-text-muted font-mono text-[12px]">{invoice.customer.phone}</p>
             )}
             {invoice.customer?.billingAddressLine1 && (
-              <p className="text-gray-500 mt-1">
+              <p className="text-text-secondary mt-1">
                 {invoice.customer.billingAddressLine1}
                 {invoice.customer.billingAddressLine2 && `, ${invoice.customer.billingAddressLine2}`}
                 <br />
@@ -244,80 +212,68 @@ export default function CustomerInvoiceDetailPage() {
               </p>
             )}
             {invoice.customer?.gstOrTaxId && (
-              <p className="text-xs text-gray-600 font-medium mt-2">
+              <p className="text-[11px] text-text-muted font-mono mt-1.5">
                 Customer GSTIN / Tax ID: {invoice.customer.gstOrTaxId}
               </p>
             )}
           </div>
 
-          <div className="sm:text-right space-y-2">
+          <div className="sm:text-right space-y-1.5">
             <div>
-              <span className="text-xs text-gray-500">Invoice Date:</span>
-              <span className="ml-2 font-medium text-gray-900">
-                {invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : "N/A"}
+              <span className="text-[12px] text-text-secondary">Issue Date:</span>
+              <span className="ml-2 font-mono font-medium text-text-primary">
+                {invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString("en-IN") : "N/A"}
               </span>
             </div>
             <div>
-              <span className="text-xs text-gray-500">Payment Due Date:</span>
-              <span className="ml-2 font-semibold text-rose-600">
-                {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "Upon Receipt"}
+              <span className="text-[12px] text-text-secondary">Payment Due:</span>
+              <span className="ml-2 font-mono font-medium text-status-warning">
+                {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("en-IN") : "Immediate"}
               </span>
-            </div>
-            {invoice.paidAt && (
-              <div>
-                <span className="text-xs text-gray-500">Settled On:</span>
-                <span className="ml-2 font-medium text-emerald-600">
-                  {new Date(invoice.paidAt).toLocaleDateString()}
-                </span>
-              </div>
-            )}
-            <div>
-              <span className="text-xs text-gray-500">Currency:</span>
-              <span className="ml-2 font-medium text-gray-900">{invoice.currency || "INR"}</span>
             </div>
           </div>
         </div>
 
         {/* Line Items Table */}
-        <div className="py-8 border-b border-gray-200">
-          <table className="w-full text-left border-collapse">
+        <div className="py-6 border-b border-border">
+          <table className="w-full text-left border-collapse text-[13px]">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-semibold uppercase text-gray-500 tracking-wider">
-                <th className="py-3 px-2">Item Description</th>
-                <th className="py-3 px-2 text-center">Qty</th>
-                <th className="py-3 px-2 text-right">Unit Price</th>
-                <th className="py-3 px-2 text-right">Tax Rate</th>
-                <th className="py-3 px-2 text-right">Amount</th>
+              <tr className="border-b border-border text-[11px] font-medium uppercase text-text-muted tracking-wider">
+                <th className="py-2.5 px-2">Description</th>
+                <th className="py-2.5 px-2 text-center">Qty</th>
+                <th className="py-2.5 px-2 text-right">Unit Price</th>
+                <th className="py-2.5 px-2 text-right">Tax Rate</th>
+                <th className="py-2.5 px-2 text-right">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className="divide-y divide-border">
               {invoice.items && invoice.items.length > 0 ? (
-                invoice.items.map((item: any, idx: number) => (
-                  <tr key={item.id || idx}>
-                    <td className="py-4 px-2">
-                      <div className="font-semibold text-gray-900">
+                invoice.items.map((item: any) => (
+                  <tr key={item.id}>
+                    <td className="py-3 px-2">
+                      <div className="font-medium text-text-primary">
                         {item.description || item.product?.name || "Subscription Service"}
                       </div>
-                      {item.product?.code && (
-                        <span className="text-xs text-gray-400">SKU: {item.product.code}</span>
+                      {item.product?.sku && (
+                        <span className="text-[11px] font-mono text-text-muted">SKU: {item.product.sku}</span>
                       )}
                     </td>
-                    <td className="py-4 px-2 text-center text-gray-600">{item.quantity}</td>
-                    <td className="py-4 px-2 text-right text-gray-600">
+                    <td className="py-3 px-2 text-center font-mono text-text-secondary">{item.quantity}</td>
+                    <td className="py-3 px-2 text-right font-mono text-text-secondary">
                       {formatINR(item.unitPriceMinor)}
                     </td>
-                    <td className="py-4 px-2 text-right text-gray-600">
+                    <td className="py-3 px-2 text-right font-mono text-text-secondary">
                       {item.taxRateBps ? `${item.taxRateBps / 100}%` : "0%"}
                     </td>
-                    <td className="py-4 px-2 text-right font-medium text-gray-900">
+                    <td className="py-3 px-2 text-right font-mono font-medium text-text-primary">
                       {formatINR(item.totalAmountMinor || item.amountMinor)}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-4 text-center text-gray-500">
-                    No individual line items recorded.
+                  <td colSpan={5} className="py-4 text-center text-text-muted">
+                    No itemized lines in this invoice.
                   </td>
                 </tr>
               )}
@@ -325,74 +281,66 @@ export default function CustomerInvoiceDetailPage() {
           </table>
         </div>
 
-        {/* Financial Summary & Breakdown */}
-        <div className="pt-8 flex flex-col sm:flex-row justify-between items-start gap-8">
-          <div className="max-w-xs space-y-3">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Payment Terms & Notes
+        {/* Summary Breakdown */}
+        <div className="pt-6 flex flex-col sm:flex-row justify-between items-start gap-8">
+          <div className="max-w-xs space-y-2">
+            <h4 className="text-[11px] font-medium text-text-muted uppercase tracking-wider">
+              Payment Terms & Instructions
             </h4>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Thank you for choosing Brightloop. Invoices are due by the specified date. All
-              calculations use integer minor units (paise) with GST regulatory compliance.
+            <p className="text-[12px] text-text-secondary leading-relaxed">
+              Payment due upon receipt. Electronic payment receipts are automatically attached to customer accounts.
             </p>
-            {invoice.discountApplications && invoice.discountApplications.length > 0 && (
-              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 text-xs text-emerald-800">
-                <span className="font-semibold">Discount Applied:</span>{" "}
-                {invoice.discountApplications[0].discount?.name} (Code:{" "}
-                {invoice.discountApplications[0].discount?.code})
-              </div>
-            )}
           </div>
 
-          <div className="w-full sm:w-80 space-y-2.5 text-sm">
-            <div className="flex justify-between text-gray-600">
+          <div className="w-full sm:w-80 space-y-2 text-[13px]">
+            <div className="flex justify-between text-text-secondary">
               <span>Subtotal:</span>
-              <span className="font-medium text-gray-900">
+              <span className="font-mono text-text-primary">
                 {formatINR(invoice.subtotalAmountMinor)}
               </span>
             </div>
 
             {Number(invoice.discountAmountMinor || 0) > 0 && (
-              <div className="flex justify-between text-emerald-600 font-medium">
-                <span>Promotional Discount:</span>
-                <span>-{formatINR(invoice.discountAmountMinor)}</span>
+              <div className="flex justify-between text-status-success font-medium">
+                <span>Discount Applied:</span>
+                <span className="font-mono">-{formatINR(invoice.discountAmountMinor)}</span>
               </div>
             )}
 
             {/* Tax breakdown items */}
             {taxBreakdown.length > 0 ? (
               taxBreakdown.map((t: any, i: number) => (
-                <div key={i} className="flex justify-between text-xs text-gray-500">
+                <div key={i} className="flex justify-between text-[12px] text-text-muted">
                   <span>
                     {t.name || t.taxCode} ({t.rateBps / 100}%):
                   </span>
-                  <span>{formatINR(t.amountMinor || t.amount)}</span>
+                  <span className="font-mono">{formatINR(t.amountMinor || t.amount)}</span>
                 </div>
               ))
             ) : (
-              <div className="flex justify-between text-gray-600">
+              <div className="flex justify-between text-text-secondary">
                 <span>Total Tax (GST):</span>
-                <span>{formatINR(invoice.taxAmountMinor)}</span>
+                <span className="font-mono text-text-primary">{formatINR(invoice.taxAmountMinor)}</span>
               </div>
             )}
 
-            <div className="pt-3 border-t border-gray-200 flex justify-between items-baseline">
-              <span className="text-base font-bold text-gray-900">Total Invoiced:</span>
-              <span className="text-xl font-black text-gray-900">
+            <div className="pt-2.5 border-t border-border flex justify-between items-baseline">
+              <span className="text-[14px] font-semibold text-text-primary">Total Invoiced:</span>
+              <span className="text-[18px] font-semibold text-text-primary font-mono tracking-tight">
                 {formatINR(invoice.totalAmountMinor)}
               </span>
             </div>
 
-            <div className="flex justify-between text-emerald-600 font-semibold pt-1">
+            <div className="flex justify-between text-status-success font-medium pt-1">
               <span>Amount Paid:</span>
-              <span>{formatINR(invoice.amountPaidMinor)}</span>
+              <span className="font-mono">{formatINR(invoice.amountPaidMinor)}</span>
             </div>
 
-            <div className="pt-2 border-t border-dashed border-gray-200 flex justify-between items-baseline">
-              <span className="font-bold text-gray-900">Balance Due:</span>
+            <div className="pt-2 border-t border-dashed border-border flex justify-between items-baseline">
+              <span className="font-semibold text-text-primary">Balance Due:</span>
               <span
-                className={`text-lg font-black ${
-                  balanceDue > 0 ? "text-rose-600" : "text-emerald-600"
+                className={`text-[17px] font-semibold font-mono tracking-tight ${
+                  balanceDue > 0 ? "text-status-danger" : "text-status-success"
                 }`}
               >
                 {formatINR(invoice.balanceDueMinor)}
@@ -403,39 +351,39 @@ export default function CustomerInvoiceDetailPage() {
 
         {/* Payment History / Allocations Table */}
         {invoice.paymentAllocations && invoice.paymentAllocations.length > 0 && (
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center">
-              <ShieldCheck className="w-4 h-4 mr-2 text-emerald-600" />
+          <div className="mt-8 pt-6 border-t border-border">
+            <h3 className="text-[11px] font-medium text-text-muted uppercase tracking-wider mb-3 flex items-center">
+              <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-status-success" />
               Settlement Ledger / Payment History
             </h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border border-gray-100 rounded-lg">
-                <thead className="bg-gray-50 text-gray-500 uppercase">
+              <table className="w-full text-left text-[12px] border border-border rounded-btn">
+                <thead className="bg-surface-canvas text-text-muted uppercase text-[10px] font-medium tracking-wider">
                   <tr>
-                    <th className="py-2.5 px-3">Date</th>
-                    <th className="py-2.5 px-3">Payment Reference</th>
-                    <th className="py-2.5 px-3">Method</th>
-                    <th className="py-2.5 px-3 text-right">Allocated Amount</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2 px-3">Date</th>
+                    <th className="py-2 px-3">Payment Reference</th>
+                    <th className="py-2 px-3">Method</th>
+                    <th className="py-2 px-3 text-right">Allocated Amount</th>
+                    <th className="py-2 px-3 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {invoice.paymentAllocations.map((alloc: any) => (
                     <tr key={alloc.id}>
-                      <td className="py-2.5 px-3 text-gray-600">
-                        {alloc.createdAt ? new Date(alloc.createdAt).toLocaleDateString() : "N/A"}
+                      <td className="py-2 px-3 font-mono text-text-secondary">
+                        {alloc.createdAt ? new Date(alloc.createdAt).toLocaleDateString("en-IN") : "N/A"}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-medium text-gray-900">
+                      <td className="py-2 px-3 font-mono font-medium text-text-primary">
                         {alloc.payment?.paymentReference || "N/A"}
                       </td>
-                      <td className="py-2.5 px-3 text-gray-600">
+                      <td className="py-2 px-3 text-text-secondary">
                         {alloc.payment?.paymentMethod || "CARD"}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-emerald-600">
+                      <td className="py-2 px-3 text-right font-mono font-medium text-status-success">
                         {formatINR(alloc.allocatedAmountMinor)}
                       </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                      <td className="py-2 px-3 text-center">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-badge text-[10px] font-medium bg-status-success/10 text-status-success border border-status-success/20">
                           Applied
                         </span>
                       </td>
@@ -454,133 +402,133 @@ export default function CustomerInvoiceDetailPage() {
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsPayModalOpen(false);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in"
         >
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+          <div className="bg-surface-card rounded-dialog max-w-md w-full p-6 shadow-xl border border-border animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-                  <CreditCard className="w-5 h-5" />
+                <div className="p-1.5 rounded-btn bg-status-success/10 text-status-success">
+                  <CreditCard className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Pay Outstanding Balance</h3>
-                  <p className="text-xs text-gray-500">Invoice: {invoice.invoiceNumber}</p>
+                  <h3 className="font-semibold text-text-primary text-[15px]">Pay Outstanding Balance</h3>
+                  <p className="text-[12px] font-mono text-text-muted">{invoice.invoiceNumber}</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsPayModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 p-1"
+                className="text-text-muted hover:text-text-primary p-1 rounded-btn"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {paymentSuccessData ? (
-              <div className="py-6 text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-8 h-8" />
+              <div className="py-5 text-center space-y-3.5">
+                <div className="w-12 h-12 bg-status-success/15 text-status-success rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-6 h-6 stroke-[2.2]" />
                 </div>
-                <h4 className="text-lg font-bold text-gray-900">Payment Successful!</h4>
-                <p className="text-xs text-gray-500 max-w-xs mx-auto">
-                  Your payment of{" "}
-                  <span className="font-bold text-gray-900">
+                <h4 className="text-[17px] font-semibold text-text-primary">Payment Successful</h4>
+                <p className="text-[12px] text-text-secondary max-w-xs mx-auto">
+                  Payment of{" "}
+                  <span className="font-semibold text-text-primary font-mono">
                     {formatINR(paymentSuccessData.payment?.amountMinor)}
                   </span>{" "}
-                  has been simulated, recorded, and allocated directly to this invoice.
+                  has been simulated, recorded, and settled against this invoice.
                 </p>
-                <div className="p-3 bg-gray-50 rounded-xl font-mono text-xs text-gray-700 text-left space-y-1">
+                <div className="p-3 bg-surface-canvas rounded-btn border border-border font-mono text-[12px] text-text-primary text-left space-y-1">
                   <div>
-                    <span className="text-gray-400">Transaction ID:</span>{" "}
+                    <span className="text-text-muted font-sans text-[11px]">Txn Ref:</span>{" "}
                     {paymentSuccessData.payment?.paymentReference}
                   </div>
                   <div>
-                    <span className="text-gray-400">Method:</span>{" "}
+                    <span className="text-text-muted font-sans text-[11px]">Method:</span>{" "}
                     {paymentSuccessData.payment?.paymentMethod}
                   </div>
                   <div>
-                    <span className="text-gray-400">New Status:</span>{" "}
-                    <span className="text-emerald-600 font-semibold">
+                    <span className="text-text-muted font-sans text-[11px]">New Status:</span>{" "}
+                    <span className="text-status-success font-semibold">
                       {paymentSuccessData.updatedInvoice?.status}
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsPayModalOpen(false)}
-                  className="w-full py-2.5 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90"
+                  className="w-full py-2.5 rounded-btn text-[13px] font-medium text-white bg-primary-accent hover:bg-primary-hover shadow-xs transition-colors"
                 >
                   Done
                 </button>
               </div>
             ) : (
-              <div className="py-4 space-y-5">
-                <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 flex items-center justify-between">
+              <div className="py-4 space-y-4">
+                <div className="p-3.5 bg-surface-canvas rounded-btn border border-border flex items-center justify-between">
                   <div>
-                    <span className="text-xs text-emerald-800 font-medium block">
+                    <span className="text-[11px] font-medium text-text-muted uppercase tracking-wider block">
                       Payable Amount
                     </span>
-                    <span className="text-2xl font-black text-emerald-700">
+                    <span className="text-[22px] font-semibold text-text-primary font-mono tracking-tight">
                       {formatINR(invoice.balanceDueMinor)}
                     </span>
                   </div>
-                  <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded font-semibold">
+                  <span className="text-[11px] bg-status-success/10 text-status-success border border-status-success/20 px-2 py-0.5 rounded-badge font-medium">
                     Full Settlement
                   </span>
                 </div>
 
                 {/* Demo Payment Notice */}
-                <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="p-3 bg-surface-canvas rounded-btn border border-border text-[12px] text-text-secondary flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-primary-accent shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold">Demo Payment Simulator</span>
-                    <p className="text-amber-700 mt-0.5">
-                      This simulates an authorized payment gateway without collecting real bank credentials.
+                    <span className="font-medium text-text-primary">Development Payment Gateway</span>
+                    <p className="text-[11px] text-text-muted mt-0.5">
+                      Simulates payment authorization and direct ledger reconciliation without real bank funds transfer.
                     </p>
                   </div>
                 </div>
 
                 {/* Payment Method Selector */}
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider block">
-                    Select Payment Method
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-text-muted uppercase tracking-wider block">
+                    Payment Method
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setPaymentMethod("UPI")}
-                      className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center transition-all ${
+                      className={`p-2.5 rounded-btn border text-center flex flex-col items-center justify-center transition-colors ${
                         paymentMethod === "UPI"
-                          ? "border-emerald-600 bg-emerald-50/40 text-emerald-700 font-semibold ring-1 ring-emerald-600"
-                          : "border-gray-200 hover:border-gray-300 text-gray-600"
+                          ? "border-primary-accent bg-primary-accent/5 text-primary-accent font-medium shadow-xs"
+                          : "border-border bg-surface-card hover:bg-surface-canvas text-text-secondary"
                       }`}
                     >
-                      <Smartphone className="w-5 h-5 mb-1" />
-                      <span className="text-xs">UPI</span>
+                      <Smartphone className="w-4 h-4 mb-1" />
+                      <span className="text-[12px]">UPI</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setPaymentMethod("CARD")}
-                      className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center transition-all ${
+                      className={`p-2.5 rounded-btn border text-center flex flex-col items-center justify-center transition-colors ${
                         paymentMethod === "CARD"
-                          ? "border-emerald-600 bg-emerald-50/40 text-emerald-700 font-semibold ring-1 ring-emerald-600"
-                          : "border-gray-200 hover:border-gray-300 text-gray-600"
+                          ? "border-primary-accent bg-primary-accent/5 text-primary-accent font-medium shadow-xs"
+                          : "border-border bg-surface-card hover:bg-surface-canvas text-text-secondary"
                       }`}
                     >
-                      <CreditCard className="w-5 h-5 mb-1" />
-                      <span className="text-xs">Card</span>
+                      <CreditCard className="w-4 h-4 mb-1" />
+                      <span className="text-[12px]">Card</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setPaymentMethod("BANK_TRANSFER")}
-                      className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center transition-all ${
+                      className={`p-2.5 rounded-btn border text-center flex flex-col items-center justify-center transition-colors ${
                         paymentMethod === "BANK_TRANSFER"
-                          ? "border-emerald-600 bg-emerald-50/40 text-emerald-700 font-semibold ring-1 ring-emerald-600"
-                          : "border-gray-200 hover:border-gray-300 text-gray-600"
+                          ? "border-primary-accent bg-primary-accent/5 text-primary-accent font-medium shadow-xs"
+                          : "border-border bg-surface-card hover:bg-surface-canvas text-text-secondary"
                       }`}
                     >
-                      <Building className="w-5 h-5 mb-1" />
-                      <span className="text-xs">Net Banking</span>
+                      <Building className="w-4 h-4 mb-1" />
+                      <span className="text-[12px]">Net Banking</span>
                     </button>
                   </div>
                 </div>
@@ -589,7 +537,7 @@ export default function CustomerInvoiceDetailPage() {
                   <button
                     onClick={handlePayInvoice}
                     disabled={paying}
-                    className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 shadow-md transition-all flex items-center justify-center gap-2"
+                    className="w-full py-2.5 rounded-btn text-[13px] font-medium text-white bg-primary-accent hover:bg-primary-hover disabled:opacity-50 shadow-xs transition-colors flex items-center justify-center gap-2"
                   >
                     {paying ? (
                       <>
@@ -598,8 +546,7 @@ export default function CustomerInvoiceDetailPage() {
                       </>
                     ) : (
                       <>
-                        <CreditCard className="w-4 h-4" />
-                        <span>Pay {formatINR(invoice.balanceDueMinor)} Now</span>
+                        <span>Confirm & Authorize {formatINR(invoice.balanceDueMinor)}</span>
                       </>
                     )}
                   </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -20,6 +20,7 @@ import {
   Check,
   AlertCircle,
   X,
+  RefreshCw,
 } from "lucide-react";
 
 export default function ReconciliationPage() {
@@ -37,7 +38,7 @@ export default function ReconciliationPage() {
   const [allocating, setAllocating] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = { pageSize: 50 };
@@ -54,11 +55,11 @@ export default function ReconciliationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, tab, methodFilter]);
 
   useEffect(() => {
     fetchRecords();
-  }, [tab, methodFilter]);
+  }, [fetchRecords]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +110,7 @@ export default function ReconciliationPage() {
       });
 
       if (res.success) {
-        setMessage({ type: "success", text: "Payment allocated and invoice balance updated!" });
+        setMessage({ type: "success", text: "Payment successfully reconciled and allocated." });
         setActivePayment(null);
         fetchRecords();
       } else {
@@ -122,7 +123,6 @@ export default function ReconciliationPage() {
     }
   };
 
-  // Summaries
   const totalUnallocatedMinor = records.reduce(
     (sum, r) => sum + BigInt(r.unallocatedAmountMinor || 0),
     BigInt(0)
@@ -132,184 +132,185 @@ export default function ReconciliationPage() {
   return (
     <DashboardShell>
       <PageHeader
-        title="Payment Reconciliation Console"
+        title="Payment Reconciliation"
         description="Audit unmatched payments, track unallocated deposits, and settle customer balances"
+        actions={
+          <button
+            onClick={() => fetchRecords()}
+            className="inline-flex items-center px-3 py-1.5 rounded-btn border border-border bg-surface-card hover:bg-surface-canvas text-[13px] font-medium text-text-primary transition-colors shadow-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        }
       />
 
       {message && (
         <div
-          className={`mb-6 p-3.5 rounded-lg border text-xs flex items-center ${
+          className={`mb-5 p-3 rounded-btn border text-[13px] font-medium flex items-center justify-between ${
             message.type === "success"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-red-50 border-red-200 text-red-800"
+              ? "bg-status-success/10 border-status-success/20 text-status-success"
+              : "bg-status-danger/10 border-status-danger/20 text-status-danger"
           }`}
         >
-          {message.type === "success" ? (
-            <Check className="w-4 h-4 mr-2 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 mr-2 text-red-600 shrink-0" />
-          )}
           <span>{message.text}</span>
+          <button onClick={() => setMessage(null)} className="opacity-70 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-            Unmatched Transactions
-          </span>
-          <div className="text-2xl font-bold text-amber-600 flex items-center">
-            <AlertTriangle className="w-5 h-5 mr-2 text-amber-500" />
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-surface-card p-4 rounded-card border border-border shadow-xs">
+          <div className="text-[12px] font-medium text-text-secondary">Unmatched Payments</div>
+          <div className="text-[24px] font-semibold text-text-primary tracking-tight mt-1">
             {unmatchedCount}
           </div>
-          <span className="text-xs text-slate-500 mt-1 block">
-            Payments with unallocated balance
-          </span>
+          <div className="text-[11px] text-text-muted mt-0.5">Require customer invoice allocation</div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-            Unallocated Funds Pool
-          </span>
-          <div className="text-2xl font-bold text-slate-900 font-mono">
-            ₹{(Number(totalUnallocatedMinor) / 100).toLocaleString("en-IN")}
+        <div className="bg-surface-card p-4 rounded-card border border-border shadow-xs">
+          <div className="text-[12px] font-medium text-text-secondary">Unallocated Float</div>
+          <div className="text-[24px] font-semibold text-status-warning tracking-tight mt-1 font-mono">
+            ₹{(Number(totalUnallocatedMinor) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
-          <span className="text-xs text-slate-400 mt-1 block">
-            Available for invoice settlement
-          </span>
+          <div className="text-[11px] text-text-muted mt-0.5">Unsettled credit awaiting matching</div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-            Reconciliation Health
-          </span>
-          <div className="text-2xl font-bold text-emerald-600 flex items-center">
-            <CheckCircle2 className="w-5 h-5 mr-2 text-emerald-500" />
-            Active
+        <div className="bg-surface-card p-4 rounded-card border border-border shadow-xs">
+          <div className="text-[12px] font-medium text-text-secondary">Reconciled Volume</div>
+          <div className="text-[24px] font-semibold text-text-primary tracking-tight mt-1">
+            {records.filter((r) => r.isFullyAllocated).length} / {records.length}
           </div>
-          <span className="text-xs text-slate-500 mt-1 block">
-            Transactional integrity verified
-          </span>
+          <div className="text-[11px] text-text-muted mt-0.5">Fully matched transactions in view</div>
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Tab switch */}
-        <div className="flex bg-slate-100 p-1 rounded-lg">
-          <button
-            onClick={() => setTab("unmatched")}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
-              tab === "unmatched"
-                ? "bg-white text-slate-900 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Unmatched Only
-          </button>
-          <button
-            onClick={() => setTab("all")}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
-              tab === "all"
-                ? "bg-white text-slate-900 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            All Transactions
-          </button>
-        </div>
+      {/* Filter Toolbar */}
+      <div className="bg-surface-card p-4 rounded-card border border-border shadow-xs mb-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center space-x-1.5 w-full sm:w-auto">
+            <button
+              onClick={() => setTab("unmatched")}
+              className={`px-3 py-1.5 rounded-btn text-[12px] font-medium transition-colors ${
+                tab === "unmatched"
+                  ? "bg-primary-accent text-white"
+                  : "bg-surface-canvas text-text-secondary hover:text-text-primary border border-border"
+              }`}
+            >
+              Unmatched Only ({unmatchedCount})
+            </button>
+            <button
+              onClick={() => setTab("all")}
+              className={`px-3 py-1.5 rounded-btn text-[12px] font-medium transition-colors ${
+                tab === "all"
+                  ? "bg-primary-accent text-white"
+                  : "bg-surface-canvas text-text-secondary hover:text-text-primary border border-border"
+              }`}
+            >
+              All Payments ({records.length})
+            </button>
+          </div>
 
-        <div className="flex items-center space-x-3 w-full sm:w-auto">
-          <form onSubmit={handleSearch} className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search reference or customer..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500"
-            />
-          </form>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <form onSubmit={handleSearch} className="relative flex-1 sm:w-64">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                type="text"
+                placeholder="Search ref or customer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-surface-card border border-border rounded-input text-[13px] text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-primary-accent focus:ring-1 focus:ring-primary-accent"
+              />
+            </form>
 
-          <select
-            value={methodFilter}
-            onChange={(e) => setMethodFilter(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All Methods</option>
-            <option value={PaymentMethod.UPI}>UPI</option>
-            <option value={PaymentMethod.CARD}>Card</option>
-            <option value={PaymentMethod.BANK_TRANSFER}>Bank Transfer</option>
-            <option value={PaymentMethod.CASH}>Cash</option>
-          </select>
+            <select
+              value={methodFilter}
+              onChange={(e) => setMethodFilter(e.target.value)}
+              className="px-3 py-1.5 bg-surface-card border border-border rounded-input text-[12px] text-text-primary focus:outline-hidden focus:border-primary-accent"
+            >
+              <option value="all">All Methods</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="UPI">UPI</option>
+              <option value="CARD">Card</option>
+              <option value="NET_BANKING">Net Banking</option>
+              <option value="CASH">Cash</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Ledger Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-surface-card rounded-card border border-border shadow-xs overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-brand-600 border-t-transparent" />
-            <p className="text-xs text-slate-400 mt-2 font-medium">Loading reconciliation ledger...</p>
+          <div className="p-8 text-center text-[13px] text-text-secondary">
+            Loading reconciliation records...
           </div>
         ) : records.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-600">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">All payments fully reconciled</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              There are no unmatched payments requiring allocation at this time.
-            </p>
+          <div className="p-12 text-center text-[13px] text-text-secondary">
+            No payments found matching the selected filter criteria.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-[13px] text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50/75 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-4">Payment Reference</th>
-                  <th className="py-3 px-4">Customer</th>
-                  <th className="py-3 px-4">Total Amount</th>
-                  <th className="py-3 px-4">Allocated</th>
-                  <th className="py-3 px-4">Unallocated</th>
-                  <th className="py-3 px-4">Reconciliation Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr className="border-b border-border bg-surface-canvas text-[11px] font-medium text-text-muted uppercase tracking-wider">
+                  <th className="py-2.5 px-4">Payment Ref</th>
+                  <th className="py-2.5 px-4">Customer</th>
+                  <th className="py-2.5 px-4 text-right">Total Amount</th>
+                  <th className="py-2.5 px-4 text-right">Allocated</th>
+                  <th className="py-2.5 px-4 text-right">Unallocated</th>
+                  <th className="py-2.5 px-4">Status</th>
+                  <th className="py-2.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
+              <tbody className="divide-y divide-border">
                 {records.map((r) => {
-                  const total = (Number(r.amountMinor) / 100).toLocaleString("en-IN");
-                  const allocated = (Number(r.allocatedAmountMinor) / 100).toLocaleString("en-IN");
-                  const unallocated = (Number(r.unallocatedAmountMinor) / 100).toLocaleString("en-IN");
+                  const total = (Number(r.amountMinor) / 100).toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                  });
+                  const allocated = (Number(r.allocatedAmountMinor) / 100).toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                  });
+                  const unallocated = (Number(r.unallocatedAmountMinor) / 100).toLocaleString(
+                    "en-IN",
+                    { minimumFractionDigits: 2 }
+                  );
 
                   return (
-                    <tr key={r.id} className="hover:bg-slate-50/50 transition">
+                    <tr key={r.id} className="hover:bg-surface-canvas/50 transition-colors">
                       <td className="py-3 px-4">
-                        <span className="font-mono font-bold text-slate-900">{r.paymentReference}</span>
-                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                          {r.paymentMethod} • {new Date(r.paidAt).toLocaleDateString("en-IN")}
+                        <span className="font-mono font-medium text-text-primary text-[12px]">
+                          {r.paymentReference}
+                        </span>
+                        <div className="text-[11px] text-text-muted mt-0.5">
+                          {r.paymentMethod.replace("_", " ")} • {new Date(r.paidAt).toLocaleDateString("en-IN")}
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">{r.customerName}</div>
-                        <div className="text-[11px] text-slate-400">{r.customerEmail}</div>
+                        <div className="font-medium text-text-primary">{r.customerName}</div>
+                        <div className="text-[11px] text-text-muted">{r.customerEmail}</div>
                       </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">₹{total}</td>
-                      <td className="py-3 px-4 font-mono text-emerald-600">₹{allocated}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-amber-600">
-                        {BigInt(r.unallocatedAmountMinor) > BigInt(0) ? `₹${unallocated}` : "₹0"}
+                      <td className="py-3 px-4 text-right font-mono font-medium text-text-primary">
+                        ₹{total}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-status-success">
+                        ₹{allocated}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-medium text-status-warning">
+                        {BigInt(r.unallocatedAmountMinor) > BigInt(0) ? `₹${unallocated}` : "₹0.00"}
                       </td>
                       <td className="py-3 px-4">
                         {r.isFullyAllocated ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-badge text-[11px] font-medium bg-status-success/10 text-status-success border border-status-success/20">
                             <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Fully Allocated
+                            Fully Reconciled
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-badge text-[11px] font-medium bg-status-warning/10 text-status-warning border border-status-warning/20">
                             <AlertTriangle className="w-3 h-3 mr-1" />
-                            Unmatched (₹{unallocated})
+                            Unallocated
                           </span>
                         )}
                       </td>
@@ -317,7 +318,7 @@ export default function ReconciliationPage() {
                         {!r.isFullyAllocated && r.status === PaymentStatus.COMPLETED && (
                           <button
                             onClick={() => openAllocationModal(r)}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded bg-brand-600 text-white hover:bg-brand-700 transition"
+                            className="inline-flex items-center px-2.5 py-1 text-[12px] font-medium rounded-btn bg-primary-accent text-white hover:bg-primary-hover transition-colors shadow-xs"
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             Allocate
@@ -325,7 +326,7 @@ export default function ReconciliationPage() {
                         )}
                         <Link
                           href={`/admin/payments/${r.id}`}
-                          className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                          className="inline-flex items-center px-2.5 py-1 text-[12px] font-medium rounded-btn border border-border bg-surface-card hover:bg-surface-canvas text-text-primary transition-colors"
                         >
                           View
                         </Link>
@@ -347,37 +348,37 @@ export default function ReconciliationPage() {
           }}
           className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
         >
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start justify-between pb-3 mb-2 border-b border-slate-100">
+          <div className="bg-surface-card rounded-dialog max-w-md w-full p-6 shadow-xl border border-border animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between pb-3 mb-3 border-b border-border">
               <div>
-                <h3 className="text-base font-bold text-slate-900 mb-0.5">
+                <h3 className="text-[15px] font-semibold text-text-primary mb-0.5">
                   Reconcile Payment: {activePayment.paymentReference}
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Allocate unallocated funds (₹
+                <p className="text-[12px] text-text-secondary">
+                  Allocate float (₹
                   {(Number(activePayment.unallocatedAmountMinor) / 100).toLocaleString("en-IN")}) to an open invoice for{" "}
-                  <strong>{activePayment.customerName}</strong>.
+                  <strong className="text-text-primary">{activePayment.customerName}</strong>.
                 </p>
               </div>
               <button
                 onClick={() => setActivePayment(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
+                className="text-text-muted hover:text-text-primary p-1 rounded-btn hover:bg-surface-canvas transition-colors"
                 title="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {openInvoices.length === 0 ? (
               <div className="space-y-4">
-                <div className="p-4 bg-amber-50 text-amber-800 rounded-lg text-xs">
+                <div className="p-3.5 bg-status-warning/10 text-status-warning border border-status-warning/20 rounded-btn text-[12px]">
                   No open invoices with balance due found for this customer.
                 </div>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                <div className="pt-2 border-t border-border flex items-center justify-end">
                   <button
                     type="button"
                     onClick={() => setActivePayment(null)}
-                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                    className="px-4 py-2 text-[12px] font-medium rounded-btn border border-border bg-surface-card hover:bg-surface-canvas text-text-primary transition-colors"
                   >
                     Close
                   </button>
@@ -386,8 +387,8 @@ export default function ReconciliationPage() {
             ) : (
               <form onSubmit={submitAllocation} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Select Open Invoice
+                  <label className="block text-[12px] font-medium text-text-primary mb-1">
+                    Select Target Invoice
                   </label>
                   <select
                     value={selectedInvoiceId}
@@ -400,7 +401,7 @@ export default function ReconciliationPage() {
                         setAllocateAmountRupees(String(Math.min(unalloc, due)));
                       }
                     }}
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
+                    className="w-full text-[13px] border border-border rounded-input px-3 py-2 bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
                   >
                     {openInvoices.map((inv) => (
                       <option key={inv.id} value={inv.id}>
@@ -411,11 +412,11 @@ export default function ReconciliationPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-[12px] font-medium text-text-primary mb-1">
                     Amount to Allocate (₹)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-text-muted">
                       ₹
                     </span>
                     <input
@@ -424,23 +425,23 @@ export default function ReconciliationPage() {
                       required
                       value={allocateAmountRupees}
                       onChange={(e) => setAllocateAmountRupees(e.target.value)}
-                      className="w-full pl-7 pr-3 py-2 text-xs font-mono font-bold border border-slate-200 rounded-lg"
+                      className="w-full pl-7 pr-3 py-2 text-[13px] font-mono font-medium border border-border rounded-input bg-surface-card text-text-primary focus:outline-hidden focus:border-primary-accent"
                     />
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <div className="pt-3 border-t border-border flex items-center justify-end space-x-2">
                   <button
                     type="button"
                     onClick={() => setActivePayment(null)}
-                    className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                    className="px-3 py-2 text-[12px] font-medium text-text-secondary hover:text-text-primary"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={allocating}
-                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+                    className="px-4 py-2 text-[12px] font-medium rounded-btn bg-primary-accent text-white hover:bg-primary-hover disabled:opacity-50 transition-colors shadow-xs"
                   >
                     {allocating ? "Applying..." : "Confirm Allocation"}
                   </button>

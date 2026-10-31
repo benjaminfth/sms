@@ -9,7 +9,7 @@ export class EmailService {
   private constructor() {
     const provider = (process.env.EMAIL_PROVIDER || "logger").toLowerCase().trim();
 
-    if (provider === "smtp") {
+    if (provider === "smtp" && process.env.NODE_ENV !== "test") {
       this.adapter = new SmtpEmailAdapter();
     } else {
       this.adapter = new LoggerEmailAdapter();

@@ -114,336 +114,292 @@ export default function NewPlanPage() {
 
   return (
     <DashboardShell>
-      <PageHeader
-        title="Create Subscription Plan"
-        description="Bundle products and configure multi-frequency pricing tiers"
-      >
+      <div className="mb-4">
         <Link
           href="/admin/plans"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
           Back to Plans
         </Link>
-      </PageHeader>
+      </div>
 
-      <div className="max-w-3xl bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-        {error && (
-          <div className="mb-6 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-medium">
-            {error}
-          </div>
-        )}
+      <PageHeader
+        title="New Subscription Plan"
+        description="Bundle offerings, establish recurring intervals and specify renewal rules."
+      />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+      {error && (
+        <div className="mb-6 p-3 bg-[#FDEDED] text-[#D14343] border border-[#F8C6C6] rounded-[8px] text-[12px] font-medium">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
+        {/* Section 1: Plan Metadata */}
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1] mb-4">
+            Plan Identity
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
-                Plan Code *
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Plan Code <span className="text-[#D14343]">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="e.g. PLAN-PRO-MONTHLY"
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                placeholder="e.g. SAAS-GROWTH-2026"
+                className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
-                Plan Name *
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Plan Name <span className="text-[#D14343]">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. Professional Plan"
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+                placeholder="e.g. Enterprise Growth Suite"
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Description
+              </label>
+              <textarea
+                rows={2}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Plan features, capabilities and target user volume..."
+                className="w-full px-3 py-2 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] focus:outline-hidden focus:border-[#315CF5] text-[#172033]"
               />
             </div>
           </div>
+        </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase">
-              Description
-            </label>
-            <textarea
-              rows={2}
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Full software suite billed on recurring schedule..."
-              className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-            />
-          </div>
-
-          {/* Minimum Quantity & Availability Dates */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Section 2: Pricing Frequencies */}
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF1] mb-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
-                Minimum Purchase Quantity *
-              </label>
-              <input
-                type="number"
-                min={1}
-                required
-                value={formData.minQuantity}
-                onChange={(e) =>
-                  setFormData({ ...formData, minQuantity: Math.max(1, parseInt(e.target.value) || 1) })
-                }
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-              <p className="mt-1 text-[11px] text-slate-400">Subscribers cannot order below this amount.</p>
+              <h2 className="text-[14px] font-semibold text-[#172033]">
+                Billing Intervals & Pricing
+              </h2>
+              <p className="text-[12px] text-[#64748B] mt-0.5">
+                Configure frequency tiers (Monthly, Annual, etc.)
+              </p>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
-                Availability Start Date
-              </label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
-                Availability End Date
-              </label>
-              <input
-                type="date"
-                value={formData.endDate}
-                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={addPriceTier}
+              className="px-2.5 py-1 text-[12px] font-medium rounded-[6px] bg-[#F8FAFC] border border-[#E5EAF1] hover:bg-[#EFF4FE] hover:text-[#315CF5] text-[#172033] flex items-center space-x-1 transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Frequency</span>
+            </button>
           </div>
 
-          {/* Lifecycle & Policy Configurations */}
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-              Plan Lifecycle Policies
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-700">
-              <label className="flex items-center space-x-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.autoCloseOnEndDate}
-                  onChange={(e) => setFormData({ ...formData, autoCloseOnEndDate: e.target.checked })}
-                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                />
-                <span>Auto-close plan when end date is reached</span>
-              </label>
-
-              <label className="flex items-center space-x-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.allowEarlyClosure}
-                  onChange={(e) => setFormData({ ...formData, allowEarlyClosure: e.target.checked })}
-                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                />
-                <span>Allow subscribers early cancellation</span>
-              </label>
-
-              <label className="flex items-center space-x-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.allowPause}
-                  onChange={(e) => setFormData({ ...formData, allowPause: e.target.checked })}
-                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                />
-                <span>Allow subscribers to pause billing cycle</span>
-              </label>
-
-              <label className="flex items-center space-x-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.allowRenewal}
-                  onChange={(e) => setFormData({ ...formData, allowRenewal: e.target.checked })}
-                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                />
-                <span>Allow automatic subscription renewal</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Pricing Tiers */}
-          <div className="pt-4 border-t border-slate-200">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Billing Frequencies & Pricing *</h4>
-                <p className="text-xs text-slate-500">Add monthly, yearly, or custom frequency pricing</p>
-              </div>
-              <button
-                type="button"
-                onClick={addPriceTier}
-                className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center space-x-1"
+          <div className="space-y-3">
+            {prices.map((p, idx) => (
+              <div
+                key={idx}
+                className="flex flex-col sm:flex-row items-center gap-3 bg-[#F8FAFC] p-3 rounded-[8px] border border-[#E5EAF1]"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Price Tier</span>
-              </button>
+                <div className="w-full sm:w-44">
+                  <label className="block text-[11px] font-medium text-[#64748B] mb-1">
+                    Interval Frequency
+                  </label>
+                  <select
+                    value={p.billingInterval}
+                    onChange={(e) => {
+                      const newP = [...prices];
+                      newP[idx]!.billingInterval = e.target.value;
+                      setPrices(newP);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-[12px] bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033]"
+                  >
+                    <option value="WEEKLY">Weekly</option>
+                    <option value="MONTHLY">Monthly</option>
+                    <option value="QUARTERLY">Quarterly</option>
+                    <option value="YEARLY">Annual / Yearly</option>
+                  </select>
+                </div>
+
+                <div className="w-full sm:flex-1">
+                  <label className="block text-[11px] font-medium text-[#64748B] mb-1">
+                    Recurring Price (Paise)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={p.amountMinor}
+                    onChange={(e) => {
+                      const newP = [...prices];
+                      newP[idx]!.amountMinor = e.target.value;
+                      setPrices(newP);
+                    }}
+                    placeholder="256000"
+                    className="w-full px-2.5 py-1.5 text-[12px] font-mono bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033]"
+                  />
+                  <span className="text-[10px] text-[#64748B] mt-0.5 block">
+                    ₹{(Number(p.amountMinor || 0) / 100).toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                <div className="w-full sm:w-40">
+                  <label className="block text-[11px] font-medium text-[#64748B] mb-1">
+                    Setup Fee (Paise)
+                  </label>
+                  <input
+                    type="text"
+                    value={p.setupFeeMinor}
+                    onChange={(e) => {
+                      const newP = [...prices];
+                      newP[idx]!.setupFeeMinor = e.target.value;
+                      setPrices(newP);
+                    }}
+                    placeholder="0"
+                    className="w-full px-2.5 py-1.5 text-[12px] font-mono bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033]"
+                  />
+                </div>
+
+                {prices.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removePriceTier(idx)}
+                    className="p-1.5 text-[#94A3B8] hover:text-[#D14343] hover:bg-[#FDEDED] rounded-[6px] transition sm:mt-5"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Section 3: Bundled Products */}
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF1] mb-4">
+            <div>
+              <h2 className="text-[14px] font-semibold text-[#172033]">Bundled Products</h2>
+              <p className="text-[12px] text-[#64748B] mt-0.5">
+                Software services provisioned with this subscription plan
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={addItemRow}
+              className="px-2.5 py-1 text-[12px] font-medium rounded-[6px] bg-[#F8FAFC] border border-[#E5EAF1] hover:bg-[#EFF4FE] hover:text-[#315CF5] text-[#172033] flex items-center space-x-1 transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Attach Product</span>
+            </button>
+          </div>
 
-            <div className="space-y-3">
-              {prices.map((p, idx) => (
-                <div key={idx} className="flex items-center space-x-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <div className="w-32">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase">Frequency</label>
-                    <select
-                      value={p.billingInterval}
-                      onChange={(e) => {
-                        const newPrices = [...prices];
-                        newPrices[idx]!.billingInterval = e.target.value;
-                        setPrices(newPrices);
-                      }}
-                      className="mt-0.5 w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                    >
-                      <option value="DAILY">Daily</option>
-                      <option value="WEEKLY">Weekly</option>
-                      <option value="MONTHLY">Monthly</option>
-                      <option value="YEARLY">Yearly</option>
-                    </select>
-                  </div>
+          {items.length === 0 ? (
+            <p className="text-[12px] text-[#94A3B8] italic py-2">
+              No products attached yet. Click &quot;Attach Product&quot; to include catalog items in this plan.
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {items.map((it, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 bg-[#F8FAFC] p-2.5 rounded-[8px] border border-[#E5EAF1]"
+                >
+                  <select
+                    value={it.productId}
+                    onChange={(e) => {
+                      const newIt = [...items];
+                      newIt[idx]!.productId = e.target.value;
+                      newIt[idx]!.productVariantId = undefined;
+                      setItems(newIt);
+                    }}
+                    className="flex-1 px-2.5 py-1.5 text-[12px] bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033]"
+                  >
+                    {products.map((prod) => (
+                      <option key={prod.id} value={prod.id}>
+                        {prod.name} ({prod.sku})
+                      </option>
+                    ))}
+                  </select>
 
-                  <div className="w-24">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase">Interval</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={p.intervalCount}
-                      onChange={(e) => {
-                        const newPrices = [...prices];
-                        newPrices[idx]!.intervalCount = parseInt(e.target.value) || 1;
-                        setPrices(newPrices);
-                      }}
-                      className="mt-0.5 w-full px-2 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Qty (e.g. 1.0)"
+                    value={it.quantity}
+                    onChange={(e) => {
+                      const newIt = [...items];
+                      newIt[idx]!.quantity = e.target.value;
+                      setItems(newIt);
+                    }}
+                    className="w-24 px-2.5 py-1.5 text-[12px] font-mono bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033]"
+                  />
 
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase">
-                      Amount (Paise / Minor)
-                    </label>
-                    <input
-                      type="text"
-                      value={p.amountMinor}
-                      onChange={(e) => {
-                        const newPrices = [...prices];
-                        newPrices[idx]!.amountMinor = e.target.value;
-                        setPrices(newPrices);
-                      }}
-                      placeholder="256000 for ₹2,560"
-                      className="mt-0.5 w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                    />
-                  </div>
-
-                  {prices.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removePriceTier(idx)}
-                      className="mt-4 p-1.5 text-slate-400 hover:text-red-600 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeItemRow(idx)}
+                    className="p-1.5 text-[#94A3B8] hover:text-[#D14343] hover:bg-[#FDEDED] rounded-[6px] transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Section 4: Rules & Policies */}
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1] mb-3">
+            Lifecycle Policies
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+            <label className="flex items-center space-x-2 text-[#172033] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.allowRenewal}
+                onChange={(e) => setFormData({ ...formData, allowRenewal: e.target.checked })}
+                className="rounded-[4px] border-[#CBD5E1] text-[#315CF5] focus:ring-[#315CF5]"
+              />
+              <span>Enable automatic recurring renewals</span>
+            </label>
+            <label className="flex items-center space-x-2 text-[#172033] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.allowPause}
+                onChange={(e) => setFormData({ ...formData, allowPause: e.target.checked })}
+                className="rounded-[4px] border-[#CBD5E1] text-[#315CF5] focus:ring-[#315CF5]"
+              />
+              <span>Allow temporary subscription pause</span>
+            </label>
           </div>
+        </div>
 
-          {/* Included Products */}
-          <div className="pt-4 border-t border-slate-200">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Included Catalog Items</h4>
-                <p className="text-xs text-slate-500">Products and optional variants packaged into this plan</p>
-              </div>
-              <button
-                type="button"
-                onClick={addItemRow}
-                disabled={products.length === 0}
-                className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center space-x-1 disabled:opacity-50"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Product</span>
-              </button>
-            </div>
-
-            {items.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-2">No product items added yet.</p>
-            ) : (
-              <div className="space-y-2.5">
-                {items.map((it, idx) => {
-                  const selectedProd = products.find((p) => p.id === it.productId);
-                  return (
-                    <div key={idx} className="flex items-center space-x-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                      <select
-                        value={it.productId}
-                        onChange={(e) => {
-                          const newItems = [...items];
-                          newItems[idx]!.productId = e.target.value;
-                          newItems[idx]!.productVariantId = undefined;
-                          setItems(newItems);
-                        }}
-                        className="flex-1 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                      >
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.sku})
-                          </option>
-                        ))}
-                      </select>
-
-                      {selectedProd?.variants && selectedProd.variants.length > 0 && (
-                        <select
-                          value={it.productVariantId || ""}
-                          onChange={(e) => {
-                            const newItems = [...items];
-                            newItems[idx]!.productVariantId = e.target.value || undefined;
-                            setItems(newItems);
-                          }}
-                          className="w-48 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
-                        >
-                          <option value="">Base Product (No Variant)</option>
-                          {selectedProd.variants.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.name} (+₹{parseInt(v.priceAdjustmentMinor) / 100})
-                            </option>
-                          ))}
-                        </select>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => removeItemRow(idx)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="pt-6 border-t border-slate-200 flex justify-end space-x-3">
-            <Link
-              href="/admin/plans"
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-            >
-              Cancel
-            </Link>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition disabled:opacity-50"
-            >
-              {loading ? "Creating..." : "Create Plan"}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="flex justify-end space-x-2.5 pt-2">
+          <Link
+            href="/admin/plans"
+            className="px-4 py-2 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px] transition"
+          >
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs transition disabled:opacity-50"
+          >
+            {loading ? "Creating..." : "Save Plan"}
+          </button>
+        </div>
+      </form>
     </DashboardShell>
   );
 }

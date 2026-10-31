@@ -7,10 +7,11 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, Column } from "@/components/tables/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { MoneyDisplay } from "@/components/shared/MoneyDisplay";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
 import { PlanDTO, PaginationMeta } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, Layers, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Search, Layers, Edit, CheckCircle2, XCircle } from "lucide-react";
 
 export default function AdminPlansPage() {
   const [plans, setPlans] = useState<PlanDTO[]>([]);
@@ -18,6 +19,10 @@ export default function AdminPlansPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Status toggle confirmation
+  const [toggleTarget, setToggleTarget] = useState<{ id: string; name: string; currentStatus: boolean } | null>(null);
+  const [toggleLoading, setToggleLoading] = useState(false);
 
   const fetchPlans = useCallback(async () => {
     setLoading(true);
@@ -42,39 +47,42 @@ export default function AdminPlansPage() {
     fetchPlans();
   }, [fetchPlans]);
 
-  const togglePlanStatus = async (planId: string, currentStatus: boolean) => {
+  const handleToggleConfirm = async () => {
+    if (!toggleTarget) return;
+    setToggleLoading(true);
     try {
-      const endpoint = currentStatus
-        ? `/plans/${planId}/deactivate`
-        : `/plans/${planId}/activate`;
+      const endpoint = toggleTarget.currentStatus
+        ? `/plans/${toggleTarget.id}/deactivate`
+        : `/plans/${toggleTarget.id}/activate`;
       await api.post(endpoint);
+      setToggleTarget(null);
       fetchPlans();
     } catch (err) {
-      console.error("Failed to toggle plan active status:", err);
+      console.error("Failed to toggle plan status:", err);
+    } finally {
+      setToggleLoading(false);
     }
   };
 
   const columns: Column<PlanDTO>[] = [
     {
-      header: "Plan Details",
+      header: "Plan & Code",
       cell: (item) => (
-        <div>
-          <Link
-            href={`/admin/plans/${item.id}`}
-            className="font-semibold text-brand-600 hover:text-brand-800"
-          >
-            {item.name}
-          </Link>
-          <div className="flex items-center space-x-2 mt-0.5">
-            <span className="text-[10px] bg-slate-100 font-mono px-1.5 py-0.5 rounded text-slate-600">
+        <div className="min-w-0 max-w-xs">
+          <div className="flex items-center space-x-2">
+            <Link
+              href={`/admin/plans/${item.id}`}
+              className="font-medium text-[#172033] hover:text-[#315CF5] truncate block"
+            >
+              {item.name}
+            </Link>
+            <span className="text-[10px] bg-[#F1F5F9] font-mono px-1.5 py-0.5 rounded-[4px] text-[#64748B] border border-[#E5EAF1] shrink-0">
               {item.code}
             </span>
-            {item.description && (
-              <span className="text-xs text-slate-400 truncate max-w-xs">
-                {item.description}
-              </span>
-            )}
           </div>
+          {item.description && (
+            <p className="text-[11px] text-[#64748B] truncate mt-0.5">{item.description}</p>
+          )}
         </div>
       ),
     },
@@ -84,17 +92,17 @@ export default function AdminPlansPage() {
         <div className="space-y-1">
           {item.prices && item.prices.length > 0 ? (
             item.prices.map((p) => (
-              <div key={p.id} className="text-xs flex items-center space-x-2">
-                <span className="font-semibold text-slate-900">
+              <div key={p.id} className="text-[12px] flex items-center space-x-1.5">
+                <span className="font-mono font-medium text-[#172033]">
                   <MoneyDisplay amountMinor={p.amountMinor} currency={p.currency} />
                 </span>
-                <span className="text-[11px] text-slate-500 uppercase font-mono">
+                <span className="text-[11px] text-[#64748B] lowercase font-mono">
                   / {p.intervalCount > 1 ? `${p.intervalCount} ` : ""}{p.billingInterval.toLowerCase()}
                 </span>
               </div>
             ))
           ) : (
-            <span className="text-xs text-slate-400 italic">No price tiers</span>
+            <span className="text-[12px] text-[#94A3B8] italic">No prices</span>
           )}
         </div>
       ),
@@ -102,16 +110,21 @@ export default function AdminPlansPage() {
     {
       header: "Included Products",
       cell: (item) => (
-        <div className="text-xs text-slate-600">
+        <div className="text-[12px] text-[#172033]">
           {item.items && item.items.length > 0 ? (
-            item.items.map((it, idx) => (
-              <div key={idx} className="truncate max-w-xs">
-                • {it.product?.name || "Product"}
-                {it.productVariant ? ` (${it.productVariant.name})` : ""}
-              </div>
-            ))
+            <div className="flex flex-wrap gap-1">
+              {item.items.map((it, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] bg-[#F8FAFC] border border-[#E5EAF1] text-[11px]"
+                >
+                  {it.product?.name || "Product"}
+                  {it.productVariant ? ` (${it.productVariant.name})` : ""}
+                </span>
+              ))}
+            </div>
           ) : (
-            <span className="text-slate-400 italic">0 items</span>
+            <span className="text-[#94A3B8] italic">0 items</span>
           )}
         </div>
       ),
@@ -122,24 +135,32 @@ export default function AdminPlansPage() {
     },
     {
       header: "Created",
-      cell: (item) => <span className="text-xs text-slate-500">{formatDate(item.createdAt)}</span>,
+      cell: (item) => (
+        <span className="text-[12px] font-mono text-[#64748B]">
+          {formatDate(item.createdAt)}
+        </span>
+      ),
     },
     {
       header: "Actions",
+      align: "right",
       cell: (item) => (
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-end space-x-1.5">
           <Link
             href={`/admin/plans/${item.id}`}
-            className="text-xs font-semibold text-slate-700 hover:text-slate-900 px-2.5 py-1 rounded bg-slate-50 border border-slate-200"
+            className="p-1.5 text-[#64748B] hover:text-[#172033] hover:bg-[#F8FAFC] rounded-[6px] transition"
+            title="Edit Plan"
           >
-            Edit
+            <Edit className="w-3.5 h-3.5" />
           </Link>
           <button
-            onClick={() => togglePlanStatus(item.id, item.isActive)}
-            className={`text-xs font-semibold px-2.5 py-1 rounded border transition ${
+            onClick={() =>
+              setToggleTarget({ id: item.id, name: item.name, currentStatus: item.isActive })
+            }
+            className={`text-[11px] font-medium px-2 py-0.5 rounded-[5px] border transition ${
               item.isActive
-                ? "text-red-600 border-red-200 hover:bg-red-50"
-                : "text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                ? "text-[#D14343] border-[#F8C6C6] hover:bg-[#FDEDED]"
+                : "text-[#16865B] border-[#C7E8D8] hover:bg-[#EDF7F2]"
             }`}
           >
             {item.isActive ? "Deactivate" : "Activate"}
@@ -152,12 +173,19 @@ export default function AdminPlansPage() {
   return (
     <DashboardShell>
       <PageHeader
-        title="Plan Management"
-        description="Configure recurring subscription plans, interval frequencies, and product bundles"
+        title="Plans"
+        description="Configure recurring subscription tiers, billing intervals and bundled software products."
+        badge={
+          pagination ? (
+            <span className="px-2 py-0.5 rounded-[5px] bg-[#F1F5F9] border border-[#E5EAF1] text-[11px] font-medium text-[#64748B]">
+              {pagination.total} Total
+            </span>
+          ) : undefined
+        }
       >
         <Link
           href="/admin/plans/new"
-          className="inline-flex items-center px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition"
+          className="inline-flex items-center px-3.5 py-1.5 text-[13px] font-medium rounded-[8px] bg-[#315CF5] text-white hover:bg-[#2549D8] shadow-xs transition"
         >
           <Plus className="w-3.5 h-3.5 mr-1.5" />
           New Plan
@@ -165,9 +193,9 @@ export default function AdminPlansPage() {
       </PageHeader>
 
       {/* Filter and Search Bar */}
-      <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-[10px] border border-[#E5EAF1] shadow-xs">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5" />
           <input
             type="text"
             value={search}
@@ -176,7 +204,7 @@ export default function AdminPlansPage() {
               setPage(1);
             }}
             placeholder="Search plans by name or code..."
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-slate-900"
+            className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-[#F8FAFC] border border-[#E5EAF1] rounded-[8px] focus:bg-white focus:outline-hidden focus:border-[#315CF5] text-[#172033] transition"
           />
         </div>
       </div>
@@ -187,6 +215,24 @@ export default function AdminPlansPage() {
         pagination={pagination}
         onPageChange={(p) => setPage(p)}
         loading={loading}
+        emptyTitle="No plans found"
+        emptyDescription="Create subscription plans to begin offering recurring services."
+      />
+
+      {/* Status Toggle Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={!!toggleTarget}
+        title={toggleTarget?.currentStatus ? "Deactivate Plan" : "Activate Plan"}
+        description={
+          toggleTarget?.currentStatus
+            ? `Are you sure you want to deactivate "${toggleTarget?.name}"? New subscriptions won't be able to select it.`
+            : `Are you sure you want to activate "${toggleTarget?.name}" for sales?`
+        }
+        confirmLabel={toggleTarget?.currentStatus ? "Deactivate" : "Activate"}
+        variant={toggleTarget?.currentStatus ? "danger" : "primary"}
+        loading={toggleLoading}
+        onConfirm={handleToggleConfirm}
+        onCancel={() => setToggleTarget(null)}
       />
     </DashboardShell>
   );
