@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { ArrowRight, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -26,11 +26,6 @@ export default function LoginPage() {
     }
   };
 
-  const fillDemo = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError(null);
-  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 selection:bg-[#315CF5]/10">
@@ -110,41 +105,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Accounts */}
-          <div className="mt-6 pt-5 border-t border-[#E5EAF1]">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-[#94A3B8]">
-                Quick Demo Access
-              </span>
-              <span className="text-[11px] text-[#94A3B8]">One-click populate</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => fillDemo("admin@brightloop.demo", "Brightloop!2026")}
-                className="px-2.5 py-2 text-[12px] font-medium rounded-[8px] border border-[#E5EAF1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#172033] flex items-center justify-center space-x-1.5 transition-colors"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#315CF5]" />
-                <span>Admin</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo("staff@brightloop.demo", "Brightloop!2026")}
-                className="px-2.5 py-2 text-[12px] font-medium rounded-[8px] border border-[#E5EAF1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#172033] flex items-center justify-center space-x-1.5 transition-colors"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-[#3978C8]" />
-                <span>Staff</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo("customer@brightloop.demo", "Brightloop!2026")}
-                className="px-2.5 py-2 text-[12px] font-medium rounded-[8px] border border-[#E5EAF1] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#172033] flex items-center justify-center space-x-1.5 transition-colors"
-              >
-                <Users className="w-3.5 h-3.5 text-[#16865B]" />
-                <span>Customer</span>
-              </button>
-            </div>
-          </div>
 
           <div className="mt-6 pt-4 border-t border-[#E5EAF1] text-center text-[12px] text-[#64748B]">
             Need an enterprise account?{" "}
