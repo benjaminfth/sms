@@ -274,21 +274,8 @@ export class AuthService {
 
     if (!user) {
       // Return gracefully to prevent user enumeration attacks
-      return {
-        message: "If an account exists with this email address, you will receive a password reset link shortly. Please check your inbox.",
-      };
+      return { message: "If an account with that email exists, a password reset link has been generated." };
     }
-
-    // Invalidate any previous unused reset tokens for this user
-    await prisma.passwordResetToken.updateMany({
-      where: {
-        userId: user.id,
-        isUsed: false,
-      },
-      data: {
-        isUsed: true,
-      },
-    });
 
     const { rawToken, tokenHash } = generateOpaqueToken();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
@@ -301,25 +288,19 @@ export class AuthService {
       },
     });
 
-    const frontendBase = process.env.FRONTEND_URL || "http://localhost:3000";
-    const resetUrl = `${frontendBase}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${rawToken}`;
 
-    // Dispatch via email service adapter (Resend / Logger)
-    try {
-      await emailService.sendPasswordResetEmail({
-        to: user.email,
-        userName: user.fullName,
-        resetUrl,
-        expiresAtMinutes: 60,
-      });
-    } catch (err: any) {
-      // Safely log error without logging the raw token
-      console.error(`[EMAIL DISPATCH ERROR] Failed to deliver password reset to user ID: ${user.id}`);
-    }
+    // Dispatch via email service adapter
+    await emailService.sendPasswordResetEmail({
+      to: user.email,
+      userName: user.fullName,
+      resetUrl,
+      expiresAtMinutes: 60,
+    });
 
-    // Never expose reset tokens or resetUrl in API responses
     return {
-      message: "If an account exists with this email address, you will receive a password reset link shortly. Please check your inbox.",
+      message: "If an account with that email exists, a password reset link has been generated.",
+      resetUrl: process.env.NODE_ENV !== "production" ? resetUrl : undefined,
     };
   }
 
@@ -371,6 +352,6 @@ export class AuthService {
       entityId: resetRecord.userId,
     });
 
-    return { message: "Your password has been successfully updated. You can now sign in using your new password." };
+    return { message: "Password has been successfully updated" };
   }
 }

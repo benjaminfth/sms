@@ -77,7 +77,7 @@ describe("Developer 1 Gap Closure Verification Suite", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.message).toMatch(/If an account (with that email exists|exists with this email address)/);
+      expect(res.body.data.message).toContain("If an account with that email exists");
 
       // Verify no email was dispatched for nonexistent user
       expect(emailService.getCapturedEmails().length).toBe(0);
@@ -96,7 +96,7 @@ describe("Developer 1 Gap Closure Verification Suite", () => {
       const captured = emailService.getLastCapturedEmail();
       expect(captured).toBeDefined();
       expect(captured?.to).toBe(emailLower);
-      expect(captured?.subject).toMatch(/Reset Your Brightloop (Software|SMS) Password/);
+      expect(captured?.subject).toContain("Reset Your Brightloop Software Password");
     });
 
     it("should reject password reset when token has expired", async () => {

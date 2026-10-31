@@ -81,14 +81,6 @@ export default function LoginPage() {
                 placeholder="••••••••••••"
                 className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition"
               />
-              <div className="mt-1.5 flex justify-end">
-                <Link
-                  href="/forgot-password"
-                  className="text-xs font-medium text-brand-600 hover:text-brand-700 focus:outline-hidden focus:underline transition"
-                >
-                  Forgot password?
-                </Link>
-              </div>
             </div>
 
             <button
