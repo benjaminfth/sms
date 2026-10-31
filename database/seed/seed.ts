@@ -8,6 +8,12 @@ import {
   ProductType,
   PriceAdjustmentType,
   BillingInterval,
+  DiscountType,
+  InvoiceStatus,
+  PaymentMethod,
+  PaymentStatus,
+  QuotationStatus,
+  SubscriptionStatus,
 } from "../../shared/src/enums";
 
 async function main() {
@@ -252,6 +258,188 @@ async function main() {
   }
 
   console.log(`✅ Plan seeded: ${plan.name} (${plan.code}) at ₹2,560/month`);
+
+  // 7. Seed Standard Discounts
+  const launchDiscount = await prisma.discount.upsert({
+    where: { code: "LAUNCH20" },
+    update: {
+      name: "Launch Special 20% Off",
+      discountType: DiscountType.PERCENTAGE,
+      valueMinorOrBasisPoints: BigInt(2000), // 20.00%
+      isActive: true,
+      maxRedemptions: 100,
+    },
+    create: {
+      code: "LAUNCH20",
+      name: "Launch Special 20% Off",
+      discountType: DiscountType.PERCENTAGE,
+      valueMinorOrBasisPoints: BigInt(2000),
+      isActive: true,
+      maxRedemptions: 100,
+    },
+  });
+
+  const flatDiscount = await prisma.discount.upsert({
+    where: { code: "SAVE500" },
+    update: {
+      name: "Flat ₹500 Off",
+      discountType: DiscountType.FIXED_AMOUNT,
+      valueMinorOrBasisPoints: BigInt(50000), // ₹500 in paise
+      isActive: true,
+      maxRedemptions: 50,
+    },
+    create: {
+      code: "SAVE500",
+      name: "Flat ₹500 Off",
+      discountType: DiscountType.FIXED_AMOUNT,
+      valueMinorOrBasisPoints: BigInt(50000),
+      isActive: true,
+      maxRedemptions: 50,
+    },
+  });
+  console.log(`✅ Discounts seeded: ${launchDiscount.code} (20%) & ${flatDiscount.code} (₹500 off)`);
+
+  // 8. Seed Customer Quotation & Active Subscription
+  const quotation = await prisma.quotation.upsert({
+    where: { quotationNumber: "QUO-2026-0001" },
+    update: {
+      status: QuotationStatus.ACCEPTED,
+      totalAmountMinor: BigInt(256000),
+    },
+    create: {
+      quotationNumber: "QUO-2026-0001",
+      customerId: customerRecord.id,
+      status: QuotationStatus.ACCEPTED,
+      totalAmountMinor: BigInt(256000),
+      currency: "INR",
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      notes: "Enterprise kickoff quotation for Acme Global Solutions",
+    },
+  });
+
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+  const subscription = await prisma.subscription.upsert({
+    where: { subscriptionNumber: "SUB-2026-0001" },
+    update: {
+      status: SubscriptionStatus.ACTIVE,
+      nextBillingDate: nextMonth,
+    },
+    create: {
+      subscriptionNumber: "SUB-2026-0001",
+      customerId: customerRecord.id,
+      planId: plan.id,
+      quotationId: quotation.id,
+      status: SubscriptionStatus.ACTIVE,
+      billingInterval: BillingInterval.MONTHLY,
+      intervalCount: 1,
+      currency: "INR",
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: nextMonth,
+      nextBillingDate: nextMonth,
+    },
+  });
+
+  // 9. Seed Sample Invoices (One Outstanding, One Paid)
+  // Outstanding Invoice: INV-2026-0001 (Due in 7 days, ₹3,020.80)
+  const outstandingInvoice = await prisma.invoice.upsert({
+    where: { invoiceNumber: "INV-2026-0001" },
+    update: {
+      status: InvoiceStatus.ISSUED,
+      subtotalMinor: BigInt(256000),
+      taxAmountMinor: BigInt(46080), // 18% of 256000
+      totalAmountMinor: BigInt(302080),
+      amountPaidMinor: BigInt(0),
+      balanceDueMinor: BigInt(302080),
+    },
+    create: {
+      invoiceNumber: "INV-2026-0001",
+      subscriptionId: subscription.id,
+      customerId: customerRecord.id,
+      status: InvoiceStatus.ISSUED,
+      currency: "INR",
+      subtotalMinor: BigInt(256000),
+      taxAmountMinor: BigInt(46080),
+      totalAmountMinor: BigInt(302080),
+      amountPaidMinor: BigInt(0),
+      balanceDueMinor: BigInt(302080),
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      billingPeriodStart: new Date(),
+      billingPeriodEnd: nextMonth,
+    },
+  });
+
+  // Historical Paid Invoice: INV-2026-0002 (Settled via Payment PAY-2026-0001)
+  const pastPaidDate = new Date();
+  pastPaidDate.setDate(pastPaidDate.getDate() - 15);
+
+  const paidInvoice = await prisma.invoice.upsert({
+    where: { invoiceNumber: "INV-2026-0002" },
+    update: {
+      status: InvoiceStatus.PAID,
+      subtotalMinor: BigInt(200000),
+      taxAmountMinor: BigInt(36000),
+      totalAmountMinor: BigInt(236000),
+      amountPaidMinor: BigInt(236000),
+      balanceDueMinor: BigInt(0),
+      paidAt: pastPaidDate,
+    },
+    create: {
+      invoiceNumber: "INV-2026-0002",
+      subscriptionId: subscription.id,
+      customerId: customerRecord.id,
+      status: InvoiceStatus.PAID,
+      currency: "INR",
+      subtotalMinor: BigInt(200000),
+      taxAmountMinor: BigInt(36000),
+      totalAmountMinor: BigInt(236000),
+      amountPaidMinor: BigInt(236000),
+      balanceDueMinor: BigInt(0),
+      dueDate: pastPaidDate,
+      paidAt: pastPaidDate,
+    },
+  });
+
+  // Historical Payment & Allocation
+  const pastPayment = await prisma.payment.upsert({
+    where: { paymentReference: "PAY-2026-0001" },
+    update: {
+      status: PaymentStatus.COMPLETED,
+      amountMinor: BigInt(236000),
+      paidAt: pastPaidDate,
+    },
+    create: {
+      paymentReference: "PAY-2026-0001",
+      customerId: customerRecord.id,
+      amountMinor: BigInt(236000),
+      currency: "INR",
+      paymentMethod: PaymentMethod.UPI,
+      status: PaymentStatus.COMPLETED,
+      notes: "Initial setup & onboarding payment",
+      paidAt: pastPaidDate,
+    },
+  });
+
+  const existingAlloc = await prisma.paymentAllocation.findFirst({
+    where: {
+      paymentId: pastPayment.id,
+      invoiceId: paidInvoice.id,
+    },
+  });
+
+  if (!existingAlloc) {
+    await prisma.paymentAllocation.create({
+      data: {
+        paymentId: pastPayment.id,
+        invoiceId: paidInvoice.id,
+        allocatedAmountMinor: BigInt(236000),
+        createdAt: pastPaidDate,
+      },
+    });
+  }
+
+  console.log(`✅ Demo Invoices & Historical Payment seeded: Outstanding ${outstandingInvoice.invoiceNumber} (₹3,020.80) & Paid ${paidInvoice.invoiceNumber}`);
 
   console.log("✨ Seed completed successfully! Environment is ready.");
 }
