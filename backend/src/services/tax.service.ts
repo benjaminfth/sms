@@ -1,5 +1,5 @@
 import { prisma } from "../database/prisma";
-import { ConflictError, NotFoundError } from "../utils/errors";
+import { ConflictError, NotFoundError, ValidationError } from "../utils/errors";
 import { createAuditLog } from "./audit.service";
 import { PaginationParams } from "../utils/response";
 
@@ -81,6 +81,10 @@ export class TaxService {
     },
     actorUserId?: string
   ) {
+    if (data.rateBasisPoints < 0 || data.rateBasisPoints > 10000) {
+      throw new ValidationError("Tax rate basis points must be between 0 (0%) and 10000 (100%)");
+    }
+
     const existingCode = await prisma.tax.findUnique({
       where: { code: data.code },
     });
@@ -124,6 +128,10 @@ export class TaxService {
     actorUserId?: string
   ) {
     const currentTax = await this.getTaxById(id);
+
+    if (data.rateBasisPoints !== undefined && (data.rateBasisPoints < 0 || data.rateBasisPoints > 10000)) {
+      throw new ValidationError("Tax rate basis points must be between 0 (0%) and 10000 (100%)");
+    }
 
     if (data.code && data.code !== currentTax.code) {
       const existing = await prisma.tax.findUnique({
