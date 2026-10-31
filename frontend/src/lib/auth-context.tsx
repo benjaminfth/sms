@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (res.data.user.role === Role.STAFF) {
         router.push("/staff/customers");
       } else {
-        router.push("/login");
+        router.push("/portal");
       }
     }
   };
