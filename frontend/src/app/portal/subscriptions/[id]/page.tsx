@@ -20,6 +20,46 @@ import {
   CreditCard,
 } from "lucide-react";
 
+function getSubscriptionPriceMinor(sub: any): string {
+  if (sub.items && sub.items.length > 0) {
+    let total = BigInt(0);
+    for (const item of sub.items) {
+      const unit = BigInt(item.unitPriceMinor || 0);
+      const qty = parseFloat(item.quantity) || 1;
+      total += BigInt(Math.round(Number(unit) * qty));
+    }
+    if (total > BigInt(0)) {
+      return total.toString();
+    }
+  }
+
+  if (sub.plan?.prices && sub.plan.prices.length > 0) {
+    const matchingPrice =
+      sub.plan.prices.find((p: any) => p.billingInterval === sub.billingInterval) ||
+      sub.plan.prices[0];
+
+    const amount = matchingPrice?.amountMinor ?? matchingPrice?.priceMinor;
+    if (amount) {
+      return amount.toString();
+    }
+  }
+
+  return "0";
+}
+
+function getSubscriptionTitle(sub: any): string {
+  if (sub.plan?.name) return sub.plan.name;
+  if (sub.items && sub.items.length > 0) {
+    const names = sub.items
+      .map((it: any) => it.product?.name)
+      .filter(Boolean);
+    if (names.length > 0) {
+      return names.join(", ");
+    }
+  }
+  return "Enterprise Subscription";
+}
+
 export default function CustomerSubscriptionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -106,9 +146,11 @@ export default function CustomerSubscriptionDetailPage() {
     );
   }
 
-  const planPrice = subscription.plan?.prices?.[0]?.priceMinor;
-  const interval = subscription.plan?.billingInterval || "MONTHLY";
+  const planPrice = getSubscriptionPriceMinor(subscription);
+  const title = getSubscriptionTitle(subscription);
+  const interval = subscription.billingInterval || subscription.plan?.billingInterval || "MONTHLY";
   const canCancel = subscription.status === "ACTIVE" || subscription.status === "PAUSED";
+  const startDate = subscription.currentPeriodStart || subscription.createdAt;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -139,10 +181,10 @@ export default function CustomerSubscriptionDetailPage() {
               {subscription.subscriptionNumber}
             </span>
             <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0.5">
-              {subscription.plan?.name || "Enterprise Tier"}
+              {title}
             </h1>
             <p className="text-[13px] text-text-secondary mt-0.5">
-              {subscription.plan?.description || "Dedicated enterprise subscription"}
+              {subscription.plan?.description || "Dedicated recurring enterprise contract"}
             </p>
           </div>
           <div>
@@ -160,7 +202,9 @@ export default function CustomerSubscriptionDetailPage() {
               <span className="text-[22px] font-semibold text-text-primary font-mono tracking-tight">
                 {formatINR(planPrice)}
               </span>
-              <span className="text-[12px] text-text-secondary">/ {interval.toLowerCase()}</span>
+              <span className="text-[12px] text-text-secondary">
+                / {subscription.intervalCount > 1 ? `${subscription.intervalCount} ` : ""}{interval.toLowerCase()}
+              </span>
             </div>
           </div>
 
@@ -171,9 +215,7 @@ export default function CustomerSubscriptionDetailPage() {
             <div className="flex items-center gap-2 mt-1.5">
               <Calendar className="w-4 h-4 text-text-muted" />
               <span className="text-[13px] font-medium text-text-primary font-mono">
-                {subscription.startDate
-                  ? new Date(subscription.startDate).toLocaleDateString("en-IN")
-                  : "N/A"}
+                {startDate ? new Date(startDate).toLocaleDateString("en-IN") : "N/A"}
               </span>
             </div>
           </div>
@@ -187,7 +229,7 @@ export default function CustomerSubscriptionDetailPage() {
               <span className="text-[13px] font-medium text-primary-accent font-mono">
                 {subscription.nextBillingDate
                   ? new Date(subscription.nextBillingDate).toLocaleDateString("en-IN")
-                  : "N/A"}
+                  : "None scheduled"}
               </span>
             </div>
           </div>
@@ -218,7 +260,14 @@ export default function CustomerSubscriptionDetailPage() {
                       </p>
                     </div>
                   </div>
-                  <span className="text-[12px] font-mono text-text-secondary">Qty: {item.quantity}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-[12px] font-mono text-text-secondary">
+                      Qty: {parseFloat(item.quantity) || 1}
+                    </span>
+                    <span className="text-[13px] font-mono font-medium text-text-primary">
+                      {formatINR(item.unitPriceMinor)}
+                    </span>
+                  </div>
                 </div>
               ))
             ) : (
@@ -296,7 +345,7 @@ export default function CustomerSubscriptionDetailPage() {
             <div className="py-4 space-y-3.5">
               <p className="text-[12px] text-text-secondary leading-relaxed">
                 Are you sure you want to cancel{" "}
-                <span className="font-medium text-text-primary">{subscription.plan?.name}</span>? Access will remain active until the conclusion of your current billing period.
+                <span className="font-medium text-text-primary">{title}</span>? Access will remain active until the conclusion of your current billing period.
               </p>
 
               <div>

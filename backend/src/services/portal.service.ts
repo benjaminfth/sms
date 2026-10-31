@@ -452,7 +452,17 @@ export class PortalService {
   static async getProfile(customerId: string) {
     return prisma.customer.findUnique({
       where: { id: customerId },
-      include: { user: true },
+      include: {
+        user: true,
+        subscriptions: {
+          include: {
+            plan: { include: { prices: true } },
+            items: { include: { product: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 3,
+        },
+      },
     });
   }
 
