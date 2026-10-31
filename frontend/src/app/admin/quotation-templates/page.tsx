@@ -8,9 +8,9 @@ import { DataTable, Column } from "@/components/tables/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
-import { QuotationTemplateDTO, PaginationMeta } from "@sms/shared";
+import { QuotationTemplateDTO, PaginationMeta, PaymentTerms } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
-import { Plus, LayoutTemplate, Trash2, ArrowLeft, Check, X } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, X, Clock, FileText } from "lucide-react";
 
 export default function QuotationTemplatesPage() {
   const [templates, setTemplates] = useState<QuotationTemplateDTO[]>([]);
@@ -22,6 +22,9 @@ export default function QuotationTemplatesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [validityDays, setValidityDays] = useState(15);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>("NET_15");
+  const [termsAndConditions, setTermsAndConditions] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   // Confirm delete dialog state
@@ -66,10 +69,16 @@ export default function QuotationTemplatesPage() {
       await api.post("/quotation-templates", {
         name: name.trim(),
         description: description.trim() || undefined,
+        validityDays: Number(validityDays) || 15,
+        paymentTerms,
+        termsAndConditions: termsAndConditions.trim() || undefined,
         isActive: true,
       });
       setName("");
       setDescription("");
+      setValidityDays(15);
+      setPaymentTerms("NET_15");
+      setTermsAndConditions("");
       setShowCreateModal(false);
       fetchTemplates();
     } catch (err: any) {
@@ -95,11 +104,29 @@ export default function QuotationTemplatesPage() {
         <div>
           <span className="font-semibold text-slate-900 block">{item.name}</span>
           {item.description && (
-            <span className="text-xs text-slate-500 whitespace-pre-line line-clamp-2">
+            <span className="text-xs text-slate-500 line-clamp-1">
               {item.description}
             </span>
           )}
         </div>
+      ),
+    },
+    {
+      header: "Validity",
+      cell: (item) => (
+        <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+          <Clock className="w-3 h-3 mr-1 text-slate-500" />
+          {item.config?.validityDays ?? 15} Days
+        </span>
+      ),
+    },
+    {
+      header: "Payment Terms",
+      cell: (item) => (
+        <span className="inline-flex items-center text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+          <FileText className="w-3 h-3 mr-1 text-blue-500" />
+          {item.config?.paymentTerms?.replace("_", " ") ?? "NET 15"}
+        </span>
       ),
     },
     {
@@ -139,7 +166,7 @@ export default function QuotationTemplatesPage() {
     <DashboardShell>
       <PageHeader
         title="Quotation Templates"
-        description="Manage standard terms, conditions, and templates for sales quotations."
+        description="Manage standard terms, validity periods, payment conditions, and templates for quotations."
       >
         <div className="flex items-center space-x-2">
           <Link
@@ -189,9 +216,54 @@ export default function QuotationTemplatesPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Standard SaaS Net 30"
+                  placeholder="e.g. Enterprise Annual SLA Package"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    Validity (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={validityDays}
+                    onChange={(e) => setValidityDays(Number(e.target.value))}
+                    className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    Payment Terms
+                  </label>
+                  <select
+                    value={paymentTerms}
+                    onChange={(e) => setPaymentTerms(e.target.value as PaymentTerms)}
+                    className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="DUE_IMMEDIATELY">Due Immediately</option>
+                    <option value="NET_7">Net 7 Days</option>
+                    <option value="NET_15">Net 15 Days</option>
+                    <option value="NET_30">Net 30 Days</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                  Summary / Description
+                </label>
+                <input
+                  type="text"
+                  placeholder="Short description for sales team..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
@@ -201,10 +273,10 @@ export default function QuotationTemplatesPage() {
                   Default Terms & Conditions
                 </label>
                 <textarea
-                  rows={4}
-                  placeholder="Default payment terms, validity notes, SLA descriptions..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  placeholder="Terms, payment conditions, SLA guarantees..."
+                  value={termsAndConditions}
+                  onChange={(e) => setTermsAndConditions(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>

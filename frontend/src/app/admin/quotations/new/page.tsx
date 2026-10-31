@@ -62,6 +62,45 @@ export default function NewQuotationPage() {
     loadInitialData();
   }, []);
 
+  const handleTemplateChange = (selectedTemplateId: string) => {
+    setTemplateId(selectedTemplateId);
+    if (!selectedTemplateId) return;
+
+    const tmpl = templates.find((t) => t.id === selectedTemplateId);
+    if (!tmpl) return;
+
+    // 1. Calculate expiration date from template validity duration
+    const validityDays = tmpl.config?.validityDays || 15;
+    const d = new Date();
+    d.setDate(d.getDate() + validityDays);
+    setValidUntil(d.toISOString().split("T")[0]);
+
+    // 2. Set default terms & conditions and payment terms
+    let terms = tmpl.config?.termsAndConditions || tmpl.description || "";
+    if (tmpl.config?.paymentTerms) {
+      terms = terms ? `${terms}\n[Payment Terms: ${tmpl.config.paymentTerms}]` : `[Payment Terms: ${tmpl.config.paymentTerms}]`;
+    }
+    if (terms) {
+      setNotes(terms);
+    }
+
+    // 3. If template has preconfigured lines, populate them
+    if (tmpl.config?.lines && tmpl.config.lines.length > 0) {
+      const newItems: ItemRow[] = tmpl.config.lines.map((l) => {
+        const prod = products.find((p) => p.id === l.productId);
+        const unitPrice = l.unitPriceMinor || prod?.baseSellingPriceMinor || "0";
+        return {
+          productId: l.productId || "",
+          productVariantId: l.productVariantId || "",
+          description: l.description || prod?.name || "",
+          quantity: l.quantity || "1.000",
+          unitPriceMinor: unitPrice,
+        };
+      });
+      setItems(newItems);
+    }
+  };
+
   const handleProductChange = (index: number, selectedProductId: string) => {
     const prod = products.find((p) => p.id === selectedProductId);
     const updated = [...items];
@@ -226,13 +265,7 @@ export default function NewQuotationPage() {
               </label>
               <select
                 value={templateId}
-                onChange={(e) => {
-                  setTemplateId(e.target.value);
-                  const tmpl = templates.find((t) => t.id === e.target.value);
-                  if (tmpl?.description) {
-                    setNotes(tmpl.description);
-                  }
-                }}
+                onChange={(e) => handleTemplateChange(e.target.value)}
                 className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
               >
                 <option value="">Select a quotation template...</option>

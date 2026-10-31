@@ -47,6 +47,30 @@ export class SubscriptionController {
     }
   }
 
+  static async sendSubscriptionQuotation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const subscription = await SubscriptionService.sendSubscriptionQuotation(
+        req.params.id as string,
+        req.user?.userId
+      );
+      AppResponse.success(res, subscription);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async confirmSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const subscription = await SubscriptionService.confirmSubscription(
+        req.params.id as string,
+        req.user?.userId
+      );
+      AppResponse.success(res, subscription);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async activateSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const subscription = await SubscriptionService.activateSubscription(
@@ -84,6 +108,19 @@ export class SubscriptionController {
     }
   }
 
+  static async closeSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const subscription = await SubscriptionService.closeSubscription(
+        req.params.id as string,
+        req.body?.reason,
+        req.user?.userId
+      );
+      AppResponse.success(res, subscription);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async cancelSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const subscription = await SubscriptionService.cancelSubscription(
@@ -97,5 +134,17 @@ export class SubscriptionController {
       next(err);
     }
   }
-}
 
+  static async renewSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const subscription = await SubscriptionService.renewSubscription(
+        req.params.id as string,
+        req.body || {},
+        req.user?.userId
+      );
+      AppResponse.success(res, subscription);
+    } catch (err) {
+      next(err);
+    }
+  }
+}

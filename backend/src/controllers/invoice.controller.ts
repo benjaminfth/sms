@@ -17,6 +17,32 @@ export class InvoiceController {
     }
   }
 
+  static async confirmInvoice(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const invoice = await InvoiceService.confirmInvoice(
+        req.params.id as string,
+        req.body?.paymentTerms,
+        req.user?.userId
+      );
+      AppResponse.success(res, invoice);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async sendInvoice(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await InvoiceService.sendInvoice(
+        req.params.id as string,
+        req.body?.recipientEmail,
+        req.user?.userId
+      );
+      AppResponse.success(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async getInvoices(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const query = { ...(req.query as any) };
@@ -60,4 +86,3 @@ export class InvoiceController {
     }
   }
 }
-

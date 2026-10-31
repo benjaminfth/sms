@@ -7,10 +7,22 @@ import {
 } from "@sms/shared";
 import { calculateNextBillingPeriod } from "./billing-period";
 import { PricingCalculationService } from "./pricing-calculation.service";
+import { EmailNotificationService } from "./email-notification.service";
+import { calculateDueDateFromPaymentTerms } from "../utils/payment-terms";
+import { PlanPolicyHelper } from "../utils/plan-policy";
 import { SequenceService } from "../utils/sequence.service";
+import { SubscriptionService } from "./subscription.service";
 import { createAuditLog } from "./contracts";
 import { PaginationParams } from "../utils/response";
 import { NotFoundError } from "../utils/errors";
+
+export interface BillingRunOptions {
+  targetDate?: Date;
+  batchSize?: number;
+  retryFailedOnly?: boolean;
+  maxRetries?: number;
+  autoCloseExpired?: boolean;
+}
 
 export interface BillingRunResult {
   runId: string;
@@ -32,14 +44,30 @@ export interface BillingRunResult {
 
 export class BillingService {
   /**
-   * Executes a billing cycle run for all active subscriptions due on or before targetDate.
-   * Concurrency-safe and idempotent against duplicate invoice generation.
+   * Executes a billing cycle run for subscriptions due on or before targetDate.
+   * Concurrency-safe, idempotent, with sequential missed period catch-up,
+   * bounded batch processing, and failure isolation.
    */
   static async executeBillingRun(
-    targetDate: Date = new Date(),
+    options: BillingRunOptions = {},
     actorUserId?: string | null
   ): Promise<BillingRunResult> {
-    // 1. Initialize BillingRun record
+    const targetDate = options.targetDate || new Date();
+    const batchSize = Math.max(1, Math.min(options.batchSize || 50, 500));
+    const maxRetries = options.maxRetries || 3;
+    const retryFailedOnly = !!options.retryFailedOnly;
+    const autoCloseExpired = options.autoCloseExpired !== false;
+
+    // 1. Auto-close expired subscriptions before generating new invoices
+    if (autoCloseExpired) {
+      try {
+        await SubscriptionService.autoCloseExpiredSubscriptions(targetDate);
+      } catch (err) {
+        console.warn("[BillingService] Auto-close expired subscriptions warning:", err);
+      }
+    }
+
+    // 2. Initialize BillingRun record
     const billingRun = await prisma.billingRun.create({
       data: {
         runDate: new Date(),
@@ -58,219 +86,326 @@ export class BillingService {
     const attemptResults: BillingRunResult["attempts"] = [];
 
     try {
-      // 2. Fetch all ACTIVE subscriptions due for billing on or before targetDate
-      // Paused, Cancelled, and Expired subscriptions are strictly excluded
-      const dueSubscriptions = await prisma.subscription.findMany({
-        where: {
-          status: SubscriptionStatus.ACTIVE,
-          nextBillingDate: {
-            lte: targetDate,
-          },
-        },
-        include: {
-          customer: true,
-          items: {
-            include: {
-              product: true,
-              productVariant: true,
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        // Query bounded batch
+        let dueSubscriptions: any[] = [];
+
+        if (retryFailedOnly) {
+          // Identify subscriptions that failed in recent runs and have failure count < maxRetries
+          const failedAttempts = await prisma.billingAttempt.findMany({
+            where: {
+              status: BillingAttemptStatus.FAILURE,
             },
-          },
-        },
-        orderBy: {
-          nextBillingDate: "asc",
-        },
-      });
-
-      // 3. Process each due subscription independently with transactional isolation
-      for (const sub of dueSubscriptions) {
-        processedCount++;
-
-        try {
-          const outcome = await prisma.$transaction(async (tx) => {
-            // A. Idempotency Check: verify if an invoice already exists for this exact period
-            const existingInvoice = await tx.invoice.findFirst({
-              where: {
-                subscriptionId: sub.id,
-                billingPeriodStart: sub.currentPeriodStart,
-                billingPeriodEnd: sub.currentPeriodEnd,
-              },
-            });
-
-            if (existingInvoice) {
-              // Period has already been invoiced. Advance subscription if needed and record attempt.
-              const anchorDay = sub.currentPeriodStart.getUTCDate();
-              const nextPeriod = calculateNextBillingPeriod(
-                sub.currentPeriodEnd,
-                sub.billingInterval,
-                sub.intervalCount,
-                anchorDay
-              );
-
-              await tx.subscription.update({
-                where: { id: sub.id },
-                data: {
-                  currentPeriodStart: sub.currentPeriodEnd,
-                  currentPeriodEnd: nextPeriod.periodEnd,
-                  nextBillingDate: nextPeriod.nextBillingDate,
-                },
-              });
-
-              await tx.billingAttempt.create({
-                data: {
-                  billingRunId: billingRun.id,
-                  subscriptionId: sub.id,
-                  status: BillingAttemptStatus.SUCCESS,
-                  invoiceId: existingInvoice.id,
-                },
-              });
-
-              return {
-                type: "SKIPPED_EXISTING",
-                invoice: existingInvoice,
-              };
-            }
-
-            // B. Calculate line items and totals
-            const calculation = await PricingCalculationService.calculateTotals({
-              customerId: sub.customerId,
-              currency: sub.currency,
-              items: sub.items.map((it) => {
-                const desc =
-                  it.productVariant
-                    ? `${it.product.name} - ${it.productVariant.name}`
-                    : it.product.name;
-                return {
-                  productId: it.productId,
-                  productVariantId: it.productVariantId,
-                  description: desc,
-                  quantity: it.quantity ? String(it.quantity) : "1.000",
-                  unitPriceMinor: it.unitPriceMinor,
-                };
-              }),
-              billingPeriodStart: sub.currentPeriodStart,
-              billingPeriodEnd: sub.currentPeriodEnd,
-            });
-
-            // C. Generate sequential invoice number
-            const invoiceNumber = await SequenceService.getNextNumber("INV");
-
-            // Due date: 15 days from period start or current date
-            const dueDate = new Date(sub.currentPeriodStart);
-            dueDate.setUTCDate(dueDate.getUTCDate() + 15);
-
-            // D. Create Invoice & frozen InvoiceItems snapshot
-            const invoice = await tx.invoice.create({
-              data: {
-                invoiceNumber,
-                customerId: sub.customerId,
-                subscriptionId: sub.id,
-                status: InvoiceStatus.ISSUED,
-                currency: sub.currency,
-                subtotalMinor: calculation.subtotalMinor,
-                taxAmountMinor: calculation.taxAmountMinor,
-                discountAmountMinor: calculation.discountAmountMinor,
-                totalAmountMinor: calculation.totalAmountMinor,
-                amountPaidMinor: 0n,
-                balanceDueMinor: calculation.totalAmountMinor,
-                dueDate,
-                billingPeriodStart: sub.currentPeriodStart,
-                billingPeriodEnd: sub.currentPeriodEnd,
-                issuedAt: new Date(),
-                items: {
-                  create: calculation.items.map((it) => ({
-                    productId: it.productId,
-                    description: it.description,
-                    quantity: it.quantity,
-                    unitPriceMinor: it.unitPriceMinor,
-                    taxAmountMinor: it.taxAmountMinor,
-                    totalAmountMinor: it.totalAmountMinor,
-                  })),
-                },
-              },
-            });
-
-            // E. Advance Subscription Billing Dates ONLY after successful invoice generation
-            const anchorDay = sub.currentPeriodStart.getUTCDate();
-            const nextPeriod = calculateNextBillingPeriod(
-              sub.currentPeriodEnd,
-              sub.billingInterval,
-              sub.intervalCount,
-              anchorDay
-            );
-
-            await tx.subscription.update({
-              where: { id: sub.id },
-              data: {
-                currentPeriodStart: sub.currentPeriodEnd,
-                currentPeriodEnd: nextPeriod.periodEnd,
-                nextBillingDate: nextPeriod.nextBillingDate,
-              },
-            });
-
-            // F. Record Billing Attempt
-            await tx.billingAttempt.create({
-              data: {
-                billingRunId: billingRun.id,
-                subscriptionId: sub.id,
-                status: BillingAttemptStatus.SUCCESS,
-                invoiceId: invoice.id,
-              },
-            });
-
-            return {
-              type: "CREATED",
-              invoice,
-            };
+            distinct: ["subscriptionId"],
+            select: { subscriptionId: true },
+            take: batchSize,
+            skip: offset,
           });
 
-          if (outcome.type === "CREATED") {
-            invoicesGeneratedCount++;
-            attemptResults.push({
+          const subIds = failedAttempts.map((a) => a.subscriptionId);
+          if (subIds.length === 0) {
+            hasMore = false;
+            break;
+          }
+
+          dueSubscriptions = await prisma.subscription.findMany({
+            where: {
+              id: { in: subIds },
+              status: SubscriptionStatus.ACTIVE,
+            },
+            include: {
+              customer: true,
+              plan: true,
+              items: {
+                include: {
+                  product: true,
+                  productVariant: true,
+                },
+              },
+            },
+          });
+        } else {
+          // Standard due subscription query
+          dueSubscriptions = await prisma.subscription.findMany({
+            where: {
+              status: SubscriptionStatus.ACTIVE,
+              nextBillingDate: {
+                lte: targetDate,
+              },
+            },
+            include: {
+              customer: true,
+              plan: true,
+              items: {
+                include: {
+                  product: true,
+                  productVariant: true,
+                },
+              },
+            },
+            orderBy: {
+              nextBillingDate: "asc",
+            },
+            take: batchSize,
+            skip: offset,
+          });
+        }
+
+        if (dueSubscriptions.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        // Process batch
+        for (const sub of dueSubscriptions) {
+          processedCount++;
+
+          // Check if subscription has exceeded max failure threshold
+          const recentFailures = await prisma.billingAttempt.count({
+            where: {
               subscriptionId: sub.id,
-              subscriptionNumber: sub.subscriptionNumber,
-              status: BillingAttemptStatus.SUCCESS,
-              invoiceId: outcome.invoice.id,
-              invoiceNumber: outcome.invoice.invoiceNumber,
-            });
-          } else {
+              status: BillingAttemptStatus.FAILURE,
+            },
+          });
+
+          if (recentFailures >= maxRetries && !retryFailedOnly) {
             skippedCount++;
             attemptResults.push({
               subscriptionId: sub.id,
               subscriptionNumber: sub.subscriptionNumber,
-              status: BillingAttemptStatus.SUCCESS,
-              invoiceId: outcome.invoice.id,
-              invoiceNumber: outcome.invoice.invoiceNumber,
-              error: "Invoice already existed for period; skipped duplicate creation",
-            });
-          }
-        } catch (subErr: any) {
-          failedCount++;
-          const errorMessage = subErr?.message || "Unknown error during billing generation";
-
-          // Log failed attempt without advancing subscription billing date
-          await prisma.billingAttempt.create({
-            data: {
-              billingRunId: billingRun.id,
-              subscriptionId: sub.id,
               status: BillingAttemptStatus.FAILURE,
-              errorMessage,
-            },
-          });
+              error: `Permanently failing: exceeded maximum retry limit (${maxRetries}). Requires staff review.`,
+            });
+            continue;
+          }
 
-          attemptResults.push({
-            subscriptionId: sub.id,
-            subscriptionNumber: sub.subscriptionNumber,
-            status: BillingAttemptStatus.FAILURE,
-            error: errorMessage,
-          });
+          let subFailed = false;
+
+          // Sequential catch-up loop for missed periods:
+          // In case the billing engine was offline, bill every missed period in chronological order
+          while (
+            sub.nextBillingDate <= targetDate &&
+            sub.status === SubscriptionStatus.ACTIVE &&
+            !subFailed
+          ) {
+            try {
+              const outcome = await prisma.$transaction(async (tx) => {
+                // A. Idempotency Check: check if invoice already exists for this exact period
+                const existingInvoice = await tx.invoice.findFirst({
+                  where: {
+                    subscriptionId: sub.id,
+                    billingPeriodStart: sub.currentPeriodStart,
+                    billingPeriodEnd: sub.currentPeriodEnd,
+                  },
+                });
+
+                if (existingInvoice) {
+                  // Period already invoiced: advance subscription and record attempt
+                  const anchorDay = sub.currentPeriodStart.getUTCDate();
+                  const nextPeriod = calculateNextBillingPeriod(
+                    sub.currentPeriodEnd,
+                    sub.billingInterval,
+                    sub.intervalCount,
+                    anchorDay
+                  );
+
+                  await tx.subscription.update({
+                    where: { id: sub.id },
+                    data: {
+                      currentPeriodStart: sub.currentPeriodEnd,
+                      currentPeriodEnd: nextPeriod.periodEnd,
+                      nextBillingDate: nextPeriod.nextBillingDate,
+                    },
+                  });
+
+                  sub.currentPeriodStart = sub.currentPeriodEnd;
+                  sub.currentPeriodEnd = nextPeriod.periodEnd;
+                  sub.nextBillingDate = nextPeriod.nextBillingDate;
+
+                  await tx.billingAttempt.create({
+                    data: {
+                      billingRunId: billingRun.id,
+                      subscriptionId: sub.id,
+                      status: BillingAttemptStatus.SUCCESS,
+                      invoiceId: existingInvoice.id,
+                    },
+                  });
+
+                  return {
+                    type: "SKIPPED_EXISTING",
+                    invoice: existingInvoice,
+                  };
+                }
+
+                // B. Calculate line items and totals
+                const calculation = await PricingCalculationService.calculateTotals({
+                  customerId: sub.customerId,
+                  currency: sub.currency,
+                  items: sub.items.map((it: any) => {
+                    const desc =
+                      it.productVariant
+                        ? `${it.product.name} - ${it.productVariant.name}`
+                        : it.product.name;
+                    return {
+                      productId: it.productId,
+                      productVariantId: it.productVariantId,
+                      description: desc,
+                      quantity: it.quantity ? String(it.quantity) : "1.000",
+                      unitPriceMinor: it.unitPriceMinor,
+                    };
+                  }),
+                  billingPeriodStart: sub.currentPeriodStart,
+                  billingPeriodEnd: sub.currentPeriodEnd,
+                });
+
+                // C. Concurrency-safe invoice number
+                const invoiceNumber = await SequenceService.getNextNumber("INV");
+
+                // D. Determine payment terms and due date
+                const paymentTerms = PlanPolicyHelper.getDefaultPaymentTerms(sub.plan);
+                const issuedAt = new Date();
+                const dueDate = calculateDueDateFromPaymentTerms(issuedAt, paymentTerms);
+
+                // E. Create Invoice & frozen snapshots
+                const invoice = await tx.invoice.create({
+                  data: {
+                    invoiceNumber,
+                    customerId: sub.customerId,
+                    subscriptionId: sub.id,
+                    status: InvoiceStatus.ISSUED,
+                    currency: sub.currency,
+                    subtotalMinor: calculation.subtotalMinor,
+                    taxAmountMinor: calculation.taxAmountMinor,
+                    discountAmountMinor: calculation.discountAmountMinor,
+                    totalAmountMinor: calculation.totalAmountMinor,
+                    amountPaidMinor: 0n,
+                    balanceDueMinor: calculation.totalAmountMinor,
+                    dueDate,
+                    billingPeriodStart: sub.currentPeriodStart,
+                    billingPeriodEnd: sub.currentPeriodEnd,
+                    issuedAt,
+                    items: {
+                      create: calculation.items.map((it) => ({
+                        productId: it.productId,
+                        description: it.description,
+                        quantity: it.quantity,
+                        unitPriceMinor: it.unitPriceMinor,
+                        taxAmountMinor: it.taxAmountMinor,
+                        totalAmountMinor: it.totalAmountMinor,
+                      })),
+                    },
+                  },
+                });
+
+                // F. Advance Subscription Dates ONLY on success
+                const anchorDay = sub.currentPeriodStart.getUTCDate();
+                const nextPeriod = calculateNextBillingPeriod(
+                  sub.currentPeriodEnd,
+                  sub.billingInterval,
+                  sub.intervalCount,
+                  anchorDay
+                );
+
+                await tx.subscription.update({
+                  where: { id: sub.id },
+                  data: {
+                    currentPeriodStart: sub.currentPeriodEnd,
+                    currentPeriodEnd: nextPeriod.periodEnd,
+                    nextBillingDate: nextPeriod.nextBillingDate,
+                  },
+                });
+
+                // Update in-memory dates for catch-up loop
+                sub.currentPeriodStart = sub.currentPeriodEnd;
+                sub.currentPeriodEnd = nextPeriod.periodEnd;
+                sub.nextBillingDate = nextPeriod.nextBillingDate;
+
+                // G. Record Billing Attempt
+                await tx.billingAttempt.create({
+                  data: {
+                    billingRunId: billingRun.id,
+                    subscriptionId: sub.id,
+                    status: BillingAttemptStatus.SUCCESS,
+                    invoiceId: invoice.id,
+                  },
+                });
+
+                return {
+                  type: "CREATED",
+                  invoice,
+                };
+              });
+
+              if (outcome.type === "CREATED") {
+                invoicesGeneratedCount++;
+                attemptResults.push({
+                  subscriptionId: sub.id,
+                  subscriptionNumber: sub.subscriptionNumber,
+                  status: BillingAttemptStatus.SUCCESS,
+                  invoiceId: outcome.invoice.id,
+                  invoiceNumber: outcome.invoice.invoiceNumber,
+                });
+
+                // Asynchronously dispatch notification
+                EmailNotificationService.sendInvoiceNotification(outcome.invoice.id).catch(
+                  (err) => console.warn(`[BillingService] Notification error:`, err)
+                );
+              } else {
+                skippedCount++;
+                attemptResults.push({
+                  subscriptionId: sub.id,
+                  subscriptionNumber: sub.subscriptionNumber,
+                  status: BillingAttemptStatus.SUCCESS,
+                  invoiceId: outcome.invoice.id,
+                  invoiceNumber: outcome.invoice.invoiceNumber,
+                  error: "Invoice already existed for period; skipped duplicate creation",
+                });
+              }
+            } catch (subErr: any) {
+              subFailed = true;
+              failedCount++;
+              const errorMessage = subErr?.message || "Unknown error during billing generation";
+
+              // Log failed attempt without advancing subscription dates
+              await prisma.billingAttempt.create({
+                data: {
+                  billingRunId: billingRun.id,
+                  subscriptionId: sub.id,
+                  status: BillingAttemptStatus.FAILURE,
+                  errorMessage,
+                },
+              });
+
+              attemptResults.push({
+                subscriptionId: sub.id,
+                subscriptionNumber: sub.subscriptionNumber,
+                status: BillingAttemptStatus.FAILURE,
+                error: errorMessage,
+              });
+            }
+          }
+        }
+
+        // Advance batch offset
+        offset += dueSubscriptions.length;
+        if (dueSubscriptions.length < batchSize) {
+          hasMore = false;
         }
       }
 
       // 4. Update BillingRun summary
+      const finalStatus =
+        failedCount > 0 && invoicesGeneratedCount === 0
+          ? BillingRunStatus.FAILED
+          : BillingRunStatus.COMPLETED;
+
       await prisma.billingRun.update({
         where: { id: billingRun.id },
         data: {
-          status: BillingRunStatus.COMPLETED,
+          status: finalStatus,
           processedSubscriptionsCount: processedCount,
           successfulInvoicesCount: invoicesGeneratedCount,
           failedInvoicesCount: failedCount,
@@ -288,6 +423,7 @@ export class BillingService {
           invoicesGeneratedCount,
           failedCount,
           skippedCount,
+          status: finalStatus,
         },
       });
 
@@ -298,7 +434,7 @@ export class BillingService {
         invoicesGeneratedCount,
         failedCount,
         skippedCount,
-        status: BillingRunStatus.COMPLETED,
+        status: finalStatus,
         attempts: attemptResults,
       };
     } catch (runErr: any) {
@@ -306,9 +442,10 @@ export class BillingService {
         where: { id: billingRun.id },
         data: {
           status: BillingRunStatus.FAILED,
-          errorDetails: runErr?.message || "Billing run encountered a critical error",
+          errorDetails: runErr?.message || "Fatal error during billing engine execution",
         },
       });
+
       throw runErr;
     }
   }
@@ -316,10 +453,7 @@ export class BillingService {
   /**
    * Retrieves paginated billing runs.
    */
-  static async getBillingRuns(query: {
-    page?: number;
-    pageSize?: number;
-  }) {
+  static async getBillingRuns(query: { page?: number; pageSize?: number }) {
     const page = Number(query.page) || 1;
     const pageSize = Number(query.pageSize) || 20;
     const skip = (page - 1) * pageSize;
@@ -328,16 +462,7 @@ export class BillingService {
       prisma.billingRun.findMany({
         skip,
         take: pageSize,
-        orderBy: { createdAt: "desc" },
-        include: {
-          attempts: {
-            take: 5,
-            include: {
-              subscription: true,
-              invoice: true,
-            },
-          },
-        },
+        orderBy: { runDate: "desc" },
       }),
       prisma.billingRun.count(),
     ]);
@@ -347,7 +472,7 @@ export class BillingService {
   }
 
   /**
-   * Retrieves single billing run details with all attempts.
+   * Retrieves single billing run details with all attempt outcomes.
    */
   static async getBillingRunById(id: string) {
     const run = await prisma.billingRun.findUnique({
@@ -375,13 +500,13 @@ export class BillingService {
   }
 
   /**
-   * Retrieves billing attempts.
+   * Retrieves paginated individual billing attempts.
    */
   static async getBillingAttempts(query: {
     page?: number;
     pageSize?: number;
     subscriptionId?: string;
-    billingRunId?: string;
+    status?: BillingAttemptStatus;
   }) {
     const page = Number(query.page) || 1;
     const pageSize = Number(query.pageSize) || 20;
@@ -389,7 +514,7 @@ export class BillingService {
 
     const where: any = {};
     if (query.subscriptionId) where.subscriptionId = query.subscriptionId;
-    if (query.billingRunId) where.billingRunId = query.billingRunId;
+    if (query.status) where.status = query.status;
 
     const [attempts, total] = await Promise.all([
       prisma.billingAttempt.findMany({
@@ -398,7 +523,11 @@ export class BillingService {
         take: pageSize,
         orderBy: { attemptedAt: "desc" },
         include: {
-          subscription: true,
+          subscription: {
+            include: {
+              customer: true,
+            },
+          },
           invoice: true,
           billingRun: true,
         },

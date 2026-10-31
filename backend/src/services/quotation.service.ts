@@ -1,8 +1,13 @@
 import { prisma } from "../database/prisma";
-import { QuotationStatus, Role } from "@sms/shared";
+import {
+  QuotationStatus,
+  Role,
+  PaymentTerms,
+} from "@sms/shared";
 import { SequenceService } from "../utils/sequence.service";
 import { PricingCalculationService } from "./pricing-calculation.service";
 import { getProductWithVariant, createAuditLog } from "./contracts";
+import { QuotationTemplateService } from "./quotation-template.service";
 import {
   NotFoundError,
   BusinessRuleError,
@@ -11,8 +16,9 @@ import {
 import { PaginationParams } from "../utils/response";
 
 export interface CreateQuotationItemInput {
-  productId: string;
+  productId?: string;
   productVariantId?: string | null;
+  planId?: string | null;
   description?: string | null;
   quantity?: string | number;
   unitPriceMinor?: string | bigint | number;
@@ -22,15 +28,17 @@ export interface CreateQuotationInput {
   customerId: string;
   templateId?: string | null;
   currency?: string;
-  validUntil: string;
+  validUntil?: string;
+  paymentTerms?: PaymentTerms;
   notes?: string | null;
   discountCode?: string | null;
-  items: CreateQuotationItemInput[];
+  items?: CreateQuotationItemInput[];
 }
 
 export interface UpdateQuotationInput {
   templateId?: string | null;
   validUntil?: string;
+  paymentTerms?: PaymentTerms;
   notes?: string | null;
   discountCode?: string | null;
   items?: CreateQuotationItemInput[];
@@ -39,6 +47,7 @@ export interface UpdateQuotationInput {
 export class QuotationService {
   /**
    * Creates a new quotation in DRAFT status.
+   * Auto-populates lines, validity duration, and payment terms from template when selected.
    */
   static async createQuotation(
     data: CreateQuotationInput,
@@ -52,17 +61,74 @@ export class QuotationService {
       throw new NotFoundError("Customer not found");
     }
 
-    // 2. Prepare line items with resolved unit prices and descriptions
+    let templateConfig: any = null;
+    let templateTerms = "";
+    let templateValidityDays = 15;
+    let templatePaymentTerms: PaymentTerms = "NET_15";
+
+    // 2. Resolve template configuration if templateId is provided
+    if (data.templateId) {
+      const template = await QuotationTemplateService.getTemplateById(data.templateId);
+      templateConfig = template.config;
+      templateValidityDays = templateConfig?.validityDays ?? 15;
+      templatePaymentTerms = templateConfig?.paymentTerms ?? "NET_15";
+      templateTerms = templateConfig?.termsAndConditions || "";
+    }
+
+    // 3. Determine items to quote (use provided items or fallback to template lines)
+    let rawItems: CreateQuotationItemInput[] = (data.items && data.items.length > 0)
+      ? data.items
+      : [];
+
+    if (rawItems.length === 0 && templateConfig?.lines && templateConfig.lines.length > 0) {
+      for (const line of templateConfig.lines) {
+        if (line.productId) {
+          rawItems.push({
+            productId: line.productId,
+            productVariantId: line.productVariantId,
+            description: line.description,
+            quantity: line.quantity || "1.000",
+            unitPriceMinor: line.unitPriceMinor,
+          });
+        } else if (line.planId) {
+          // If template line references a plan, resolve all items in that plan
+          const plan = await prisma.plan.findUnique({
+            where: { id: line.planId },
+            include: { items: true },
+          });
+          if (plan && plan.items.length > 0) {
+            for (const pItem of plan.items) {
+              rawItems.push({
+                productId: pItem.productId,
+                productVariantId: pItem.productVariantId,
+                quantity: pItem.quantity ? String(pItem.quantity) : "1.000",
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (rawItems.length === 0) {
+      throw new BusinessRuleError("Quotation must have at least one line item");
+    }
+
+    // 4. Prepare line items with resolved unit prices and descriptions
     const preparedItems = [];
-    for (const item of data.items) {
+    for (const item of rawItems) {
+      if (!item.productId) {
+        throw new BusinessRuleError("Product ID is required for all quotation items");
+      }
+
       const { product, variant, finalPriceMinor } = await getProductWithVariant(
         item.productId,
         item.productVariantId || undefined
       );
 
-      const unitPriceMinor = item.unitPriceMinor !== undefined
-        ? BigInt(String(item.unitPriceMinor))
-        : BigInt(finalPriceMinor);
+      const unitPriceMinor =
+        item.unitPriceMinor !== undefined && item.unitPriceMinor !== null
+          ? BigInt(String(item.unitPriceMinor))
+          : BigInt(finalPriceMinor);
 
       const description =
         item.description ||
@@ -77,7 +143,7 @@ export class QuotationService {
       });
     }
 
-    // 3. Calculate quotation totals
+    // 5. Calculate quotation totals
     const calculation = await PricingCalculationService.calculateTotals({
       customerId: data.customerId,
       currency: data.currency || customer.currency || "INR",
@@ -85,10 +151,29 @@ export class QuotationService {
       discountCode: data.discountCode,
     });
 
-    // 4. Generate unique quotation number
+    // 6. Generate unique quotation number
     const quotationNumber = await SequenceService.getNextNumber("QUO");
 
-    // 5. Transactional insert
+    // 7. Calculate validity date: if not explicitly provided, calculate from template validity duration
+    let validUntilDate: Date;
+    if (data.validUntil) {
+      validUntilDate = new Date(data.validUntil);
+    } else {
+      validUntilDate = new Date();
+      validUntilDate.setUTCDate(validUntilDate.getUTCDate() + templateValidityDays);
+    }
+
+    // 8. Prepare notes including terms and payment terms
+    const paymentTerms = data.paymentTerms || templatePaymentTerms;
+    let notes = data.notes;
+    if (!notes && templateTerms) {
+      notes = templateTerms;
+    }
+    if (paymentTerms) {
+      notes = notes ? `${notes}\n[Payment Terms: ${paymentTerms}]` : `[Payment Terms: ${paymentTerms}]`;
+    }
+
+    // 9. Transactional insert
     const quotation = await prisma.$transaction(async (tx) => {
       const created = await tx.quotation.create({
         data: {
@@ -98,8 +183,8 @@ export class QuotationService {
           status: QuotationStatus.DRAFT,
           totalAmountMinor: calculation.totalAmountMinor,
           currency: data.currency || customer.currency || "INR",
-          validUntil: new Date(data.validUntil),
-          notes: data.notes || null,
+          validUntil: validUntilDate,
+          notes: notes || null,
           items: {
             create: calculation.items.map((it) => ({
               productId: it.productId!,
@@ -138,7 +223,7 @@ export class QuotationService {
       return created;
     });
 
-    // Audit log
+    // 10. Audit Log
     await createAuditLog({
       actorUserId,
       action: "CREATE_QUOTATION",
@@ -151,19 +236,15 @@ export class QuotationService {
   }
 
   /**
-   * Retrieves a paginated list of quotations.
+   * Retrieves paginated quotations.
    */
-  static async getQuotations(
-    query: {
-      page?: number;
-      pageSize?: number;
-      search?: string;
-      status?: QuotationStatus;
-      customerId?: string;
-    },
-    _currentUserRole?: Role,
-    _currentCustomerUserId?: string
-  ) {
+  static async getQuotations(query: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: QuotationStatus;
+    customerId?: string;
+  }) {
     const page = Number(query.page) || 1;
     const pageSize = Number(query.pageSize) || 20;
     const skip = (page - 1) * pageSize;
@@ -212,7 +293,7 @@ export class QuotationService {
   }
 
   /**
-   * Retrieves a single quotation by ID with its items and relations.
+   * Retrieves a single quotation with its line items.
    */
   static async getQuotationById(id: string) {
     const quotation = await prisma.quotation.findUnique({
@@ -243,7 +324,7 @@ export class QuotationService {
   }
 
   /**
-   * Updates an existing quotation. Allowed only when status is DRAFT.
+   * Updates an existing quotation. Only allowed in DRAFT status.
    */
   static async updateQuotation(
     id: string,
@@ -251,66 +332,70 @@ export class QuotationService {
     actorUserId?: string | null
   ) {
     const existing = await this.getQuotationById(id);
+
     if (existing.status !== QuotationStatus.DRAFT) {
       throw new BusinessRuleError(
-        `Cannot edit quotation with status ${existing.status}. Only DRAFT quotations can be modified.`
+        `Quotation cannot be edited in ${existing.status} status. Only DRAFT quotations can be edited.`
       );
     }
 
     let totalAmountMinor = existing.totalAmountMinor;
-    let preparedItems: any[] | null = null;
-
-    if (data.items && data.items.length > 0) {
-      preparedItems = [];
-      for (const item of data.items) {
-        const { product, variant, finalPriceMinor } = await getProductWithVariant(
-          item.productId,
-          item.productVariantId || undefined
-        );
-
-        const unitPriceMinor = item.unitPriceMinor !== undefined
-          ? BigInt(String(item.unitPriceMinor))
-          : BigInt(finalPriceMinor);
-
-        const description =
-          item.description ||
-          (variant ? `${product.name} - ${variant.name}` : product.name);
-
-        preparedItems.push({
-          productId: product.id,
-          productVariantId: variant?.id || null,
-          description,
-          quantity: item.quantity ? String(item.quantity) : "1.000",
-          unitPriceMinor,
-        });
-      }
-
-      const calculation = await PricingCalculationService.calculateTotals({
-        customerId: existing.customerId,
-        currency: existing.currency,
-        items: preparedItems,
-        discountCode: data.discountCode,
-      });
-
-      totalAmountMinor = calculation.totalAmountMinor;
-    }
 
     const updated = await prisma.$transaction(async (tx) => {
-      if (preparedItems) {
+      // If items are being replaced, recalculate totals
+      if (data.items && data.items.length > 0) {
+        const preparedItems = [];
+        for (const item of data.items) {
+          if (!item.productId) {
+            throw new BusinessRuleError("Product ID is required for all quotation items");
+          }
+          const { product, variant, finalPriceMinor } = await getProductWithVariant(
+            item.productId,
+            item.productVariantId || undefined
+          );
+
+          const unitPriceMinor =
+            item.unitPriceMinor !== undefined && item.unitPriceMinor !== null
+              ? BigInt(String(item.unitPriceMinor))
+              : BigInt(finalPriceMinor);
+
+          const description =
+            item.description ||
+            (variant ? `${product.name} - ${variant.name}` : product.name);
+
+          preparedItems.push({
+            productId: product.id,
+            productVariantId: variant?.id || null,
+            description,
+            quantity: item.quantity ? String(item.quantity) : "1.000",
+            unitPriceMinor,
+          });
+        }
+
+        const calculation = await PricingCalculationService.calculateTotals({
+          customerId: existing.customerId,
+          currency: existing.currency,
+          items: preparedItems,
+          discountCode: data.discountCode,
+        });
+
+        totalAmountMinor = calculation.totalAmountMinor;
+
+        // Delete existing items
         await tx.quotationItem.deleteMany({
           where: { quotationId: id },
         });
 
+        // Insert new items
         await tx.quotationItem.createMany({
-          data: preparedItems.map((it) => ({
+          data: calculation.items.map((it) => ({
             quotationId: id,
-            productId: it.productId,
-            productVariantId: it.productVariantId,
+            productId: it.productId!,
+            productVariantId: it.productVariantId || null,
             description: it.description,
             quantity: it.quantity,
             unitPriceMinor: it.unitPriceMinor,
-            totalAmountMinor:
-              (it.unitPriceMinor * BigInt(Math.round(parseFloat(it.quantity) * 1000))) / 1000n,
+            totalAmountMinor: it.totalAmountMinor,
           })),
         });
       }
@@ -394,7 +479,6 @@ export class QuotationService {
   ) {
     const quotation = await this.getQuotationById(id);
 
-    // If Customer is accepting, verify ownership
     if (actorRole === Role.CUSTOMER && actorCustomerId !== quotation.customerId) {
       throw new ForbiddenError("Cannot accept a quotation belonging to another customer");
     }
@@ -405,14 +489,13 @@ export class QuotationService {
       );
     }
 
-    // Check validity date
+    // Check if quotation has expired
     if (new Date() > quotation.validUntil) {
-      // Mark as expired
       await prisma.quotation.update({
         where: { id },
         data: { status: QuotationStatus.EXPIRED },
       });
-      throw new BusinessRuleError("Cannot accept an expired quotation");
+      throw new BusinessRuleError("Quotation has expired and cannot be accepted");
     }
 
     const updated = await prisma.quotation.update({

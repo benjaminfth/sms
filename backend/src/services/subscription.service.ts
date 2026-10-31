@@ -2,10 +2,13 @@ import { prisma } from "../database/prisma";
 import {
   SubscriptionStatus,
   BillingInterval,
+  SubscriptionBusinessStatus,
+  PaymentTerms,
 } from "@sms/shared";
 import { SequenceService } from "../utils/sequence.service";
 import { calculateNextBillingPeriod } from "./billing-period";
 import { getProductWithVariant, createAuditLog } from "./contracts";
+import { PlanPolicyHelper } from "../utils/plan-policy";
 import {
   NotFoundError,
   BusinessRuleError,
@@ -25,12 +28,57 @@ export interface CreateSubscriptionInput {
   planId?: string | null;
   billingInterval?: BillingInterval;
   intervalCount?: number;
+  paymentTerms?: PaymentTerms;
   startDate?: string;
   currency?: string;
+  stage?: "DRAFT" | "ACTIVE";
   items?: CreateSubscriptionItemInput[];
 }
 
 export class SubscriptionService {
+  /**
+   * Computes human-friendly business lifecycle status aligned with challenge specification:
+   * DRAFT -> QUOTATION -> CONFIRMED -> ACTIVE -> CLOSED
+   */
+  static computeBusinessStatus(sub: any): SubscriptionBusinessStatus {
+    if (sub.status === SubscriptionStatus.CANCELLED || sub.status === SubscriptionStatus.EXPIRED) {
+      return "CLOSED";
+    }
+    if (sub.status === SubscriptionStatus.PAUSED) {
+      return "PAUSED";
+    }
+    if (sub.cancellationReason?.startsWith("STAGE:DRAFT")) {
+      return "DRAFT";
+    }
+    if (sub.cancellationReason?.startsWith("STAGE:QUOTATION")) {
+      return "QUOTATION";
+    }
+    if (sub.cancellationReason?.startsWith("STAGE:CONFIRMED")) {
+      return "CONFIRMED";
+    }
+    if (sub.status === SubscriptionStatus.TRIALING) {
+      return "DRAFT";
+    }
+    return "ACTIVE";
+  }
+
+  /**
+   * Enriches subscription record with computed business status and lifecycle policy.
+   */
+  static enrichSubscription(sub: any) {
+    if (!sub) return sub;
+    const businessStatus = this.computeBusinessStatus(sub);
+    const lifecyclePolicy = PlanPolicyHelper.getPolicy(sub.plan);
+    const paymentTerms = PlanPolicyHelper.getDefaultPaymentTerms(sub.plan);
+
+    return {
+      ...sub,
+      businessStatus,
+      paymentTerms,
+      lifecyclePolicy,
+    };
+  }
+
   /**
    * Creates a subscription from an accepted quotation or manual creation.
    * Transactional and idempotent against duplicate conversion.
@@ -92,31 +140,40 @@ export class SubscriptionService {
         throw new NotFoundError("Plan not found");
       }
 
+      if (!plan.isActive) {
+        throw new BusinessRuleError("Cannot create a subscription for an inactive plan");
+      }
+
       if (plan.items.length > 0) {
         for (const item of plan.items) {
           const { finalPriceMinor } = await getProductWithVariant(
             item.productId,
             item.productVariantId || undefined
           );
+
           itemsToCreate.push({
             productId: item.productId,
-            productVariantId: item.productVariantId,
-            quantity: String(item.quantity),
+            productVariantId: item.productVariantId || null,
+            quantity: item.quantity ? String(item.quantity) : "1.000",
             unitPriceMinor: BigInt(finalPriceMinor),
           });
         }
       }
     }
 
-    if (itemsToCreate.length === 0 && data.items && data.items.length > 0) {
+    // If custom items provided, override or supplement plan items
+    if (data.items && data.items.length > 0) {
+      itemsToCreate = [];
       for (const item of data.items) {
         const { product, variant, finalPriceMinor } = await getProductWithVariant(
           item.productId,
           item.productVariantId || undefined
         );
-        const unitPriceMinor = item.unitPriceMinor !== undefined
-          ? BigInt(String(item.unitPriceMinor))
-          : BigInt(finalPriceMinor);
+
+        const unitPriceMinor =
+          item.unitPriceMinor !== undefined
+            ? BigInt(String(item.unitPriceMinor))
+            : BigInt(finalPriceMinor);
 
         itemsToCreate.push({
           productId: product.id,
@@ -131,13 +188,18 @@ export class SubscriptionService {
       throw new BusinessRuleError("Subscription must have at least one product line item");
     }
 
+    const isDraft = data.stage === "DRAFT";
+    const initialStatus = isDraft ? SubscriptionStatus.TRIALING : SubscriptionStatus.ACTIVE;
+    const initialReason = isDraft ? "STAGE:DRAFT" : null;
+
     const subscription = await prisma.$transaction(async (tx) => {
       return tx.subscription.create({
         data: {
           subscriptionNumber,
           customerId: data.customerId!,
           planId: data.planId || null,
-          status: SubscriptionStatus.ACTIVE,
+          status: initialStatus,
+          cancellationReason: initialReason,
           billingInterval: interval,
           intervalCount,
           currency: data.currency || customer.currency || "INR",
@@ -147,7 +209,7 @@ export class SubscriptionService {
           items: {
             create: itemsToCreate.map((it) => ({
               productId: it.productId,
-              productVariantId: it.productVariantId || null,
+              productVariantId: it.productVariantId,
               quantity: it.quantity,
               unitPriceMinor: it.unitPriceMinor,
             })),
@@ -174,7 +236,7 @@ export class SubscriptionService {
       afterData: subscription,
     });
 
-    return subscription;
+    return this.enrichSubscription(subscription);
   }
 
   /**
@@ -228,7 +290,7 @@ export class SubscriptionService {
 
       const subscriptionNumber = await SequenceService.getNextNumber("SUB");
 
-      // 2. Create Subscription & SubscriptionItems
+      // 2. Create subscription
       const subscription = await tx.subscription.create({
         data: {
           subscriptionNumber,
@@ -245,14 +307,14 @@ export class SubscriptionService {
             create: quotation.items.map((it) => ({
               productId: it.productId,
               productVariantId: it.productVariantId,
-              quantity: it.quantity,
+              quantity: it.quantity ? String(it.quantity) : "1.000",
               unitPriceMinor: it.unitPriceMinor,
             })),
           },
         },
         include: {
           customer: true,
-          quotation: true,
+          plan: true,
           items: {
             include: {
               product: true,
@@ -262,8 +324,6 @@ export class SubscriptionService {
         },
       });
 
-      return subscription;
-    }).then(async (subscription) => {
       await createAuditLog({
         actorUserId,
         action: "CONVERT_QUOTATION_TO_SUBSCRIPTION",
@@ -272,7 +332,7 @@ export class SubscriptionService {
         afterData: subscription,
       });
 
-      return subscription;
+      return SubscriptionService.enrichSubscription(subscription);
     });
   }
 
@@ -308,7 +368,7 @@ export class SubscriptionService {
       ];
     }
 
-    const [subscriptions, total] = await Promise.all([
+    const [rawSubscriptions, total] = await Promise.all([
       prisma.subscription.findMany({
         where,
         skip,
@@ -333,6 +393,7 @@ export class SubscriptionService {
       prisma.subscription.count({ where }),
     ]);
 
+    const subscriptions = rawSubscriptions.map((s) => this.enrichSubscription(s));
     const pagination: PaginationParams = { page, pageSize, total };
     return { subscriptions, pagination };
   }
@@ -367,7 +428,79 @@ export class SubscriptionService {
       throw new NotFoundError("Subscription not found");
     }
 
-    return subscription;
+    return this.enrichSubscription(subscription);
+  }
+
+  /**
+   * Transitions subscription: DRAFT -> QUOTATION
+   */
+  static async sendSubscriptionQuotation(id: string, actorUserId?: string | null) {
+    const sub = await this.getSubscriptionById(id);
+
+    if (sub.businessStatus !== "DRAFT") {
+      throw new BusinessRuleError(
+        `Cannot send subscription quotation. Current stage is ${sub.businessStatus}. Must be DRAFT.`
+      );
+    }
+
+    const updated = await prisma.subscription.update({
+      where: { id },
+      data: {
+        cancellationReason: "STAGE:QUOTATION",
+      },
+      include: {
+        customer: true,
+        plan: true,
+        items: true,
+      },
+    });
+
+    await createAuditLog({
+      actorUserId,
+      action: "SEND_SUBSCRIPTION_QUOTATION",
+      entityType: "SUBSCRIPTION",
+      entityId: id,
+      beforeData: sub,
+      afterData: updated,
+    });
+
+    return this.enrichSubscription(updated);
+  }
+
+  /**
+   * Transitions subscription: QUOTATION/DRAFT -> CONFIRMED
+   */
+  static async confirmSubscription(id: string, actorUserId?: string | null) {
+    const sub = await this.getSubscriptionById(id);
+
+    if (sub.businessStatus !== "QUOTATION" && sub.businessStatus !== "DRAFT") {
+      throw new BusinessRuleError(
+        `Cannot confirm subscription. Current stage is ${sub.businessStatus}. Must be DRAFT or QUOTATION.`
+      );
+    }
+
+    const updated = await prisma.subscription.update({
+      where: { id },
+      data: {
+        cancellationReason: "STAGE:CONFIRMED",
+      },
+      include: {
+        customer: true,
+        plan: true,
+        items: true,
+      },
+    });
+
+    await createAuditLog({
+      actorUserId,
+      action: "CONFIRM_SUBSCRIPTION",
+      entityType: "SUBSCRIPTION",
+      entityId: id,
+      beforeData: sub,
+      afterData: updated,
+    });
+
+    return this.enrichSubscription(updated);
   }
 
   /**
@@ -376,19 +509,27 @@ export class SubscriptionService {
   static async activateSubscription(id: string, actorUserId?: string | null) {
     const sub = await this.getSubscriptionById(id);
 
-    if (sub.status === SubscriptionStatus.ACTIVE) {
+    if (sub.status === SubscriptionStatus.ACTIVE && sub.businessStatus === "ACTIVE") {
       return sub;
     }
 
-    if (sub.status === SubscriptionStatus.CANCELLED) {
-      throw new BusinessRuleError("Cannot reactivate a cancelled subscription. Create a new subscription.");
+    if (sub.status === SubscriptionStatus.CANCELLED || sub.status === SubscriptionStatus.EXPIRED) {
+      throw new BusinessRuleError("Cannot reactivate a closed subscription. Create a new subscription.");
+    }
+
+    if (sub.plan && !sub.plan.isActive) {
+      throw new BusinessRuleError("Cannot activate subscription for an inactive plan");
     }
 
     const updated = await prisma.subscription.update({
       where: { id },
-      data: { status: SubscriptionStatus.ACTIVE },
+      data: {
+        status: SubscriptionStatus.ACTIVE,
+        cancellationReason: null,
+      },
       include: {
         customer: true,
+        plan: true,
         items: true,
         invoices: true,
       },
@@ -403,28 +544,37 @@ export class SubscriptionService {
       afterData: updated,
     });
 
-    return updated;
+    return this.enrichSubscription(updated);
   }
 
   /**
-   * Pauses a subscription. Paused subscriptions must not generate invoices.
+   * Pauses a subscription. Respects plan lifecycle policy.
    */
   static async pauseSubscription(
     id: string,
-    _reason?: string | null,
+    reason?: string | null,
     actorUserId?: string | null
   ) {
     const sub = await this.getSubscriptionById(id);
 
     if (sub.status !== SubscriptionStatus.ACTIVE) {
-      throw new BusinessRuleError(`Cannot pause a subscription that is ${sub.status}. Must be ACTIVE.`);
+      throw new BusinessRuleError(`Cannot pause a subscription with status ${sub.status}. Must be ACTIVE.`);
+    }
+
+    // Verify plan policy allows pausing
+    if (!PlanPolicyHelper.canPause(sub.plan)) {
+      throw new BusinessRuleError("The configured plan policy disallows pausing this subscription");
     }
 
     const updated = await prisma.subscription.update({
       where: { id },
-      data: { status: SubscriptionStatus.PAUSED },
+      data: {
+        status: SubscriptionStatus.PAUSED,
+        cancellationReason: reason ? `PAUSED: ${reason}` : sub.cancellationReason,
+      },
       include: {
         customer: true,
+        plan: true,
         items: true,
         invoices: true,
       },
@@ -439,7 +589,7 @@ export class SubscriptionService {
       afterData: updated,
     });
 
-    return updated;
+    return this.enrichSubscription(updated);
   }
 
   /**
@@ -471,12 +621,14 @@ export class SubscriptionService {
       where: { id },
       data: {
         status: SubscriptionStatus.ACTIVE,
+        cancellationReason: null,
         currentPeriodStart,
         currentPeriodEnd,
         nextBillingDate,
       },
       include: {
         customer: true,
+        plan: true,
         items: true,
         invoices: true,
       },
@@ -491,11 +643,53 @@ export class SubscriptionService {
       afterData: updated,
     });
 
-    return updated;
+    return this.enrichSubscription(updated);
+  }
+
+  /**
+   * Closes a subscription. Transitions to terminal CLOSED state.
+   */
+  static async closeSubscription(
+    id: string,
+    reason?: string | null,
+    actorUserId?: string | null
+  ) {
+    const sub = await this.getSubscriptionById(id);
+
+    if (sub.status === SubscriptionStatus.CANCELLED || sub.status === SubscriptionStatus.EXPIRED) {
+      throw new BusinessRuleError("Subscription is already closed");
+    }
+
+    const updated = await prisma.subscription.update({
+      where: { id },
+      data: {
+        status: SubscriptionStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancellationReason: reason || "Contract closed",
+      },
+      include: {
+        customer: true,
+        plan: true,
+        items: true,
+        invoices: true,
+      },
+    });
+
+    await createAuditLog({
+      actorUserId,
+      action: "CLOSE_SUBSCRIPTION",
+      entityType: "SUBSCRIPTION",
+      entityId: id,
+      beforeData: sub,
+      afterData: updated,
+    });
+
+    return this.enrichSubscription(updated);
   }
 
   /**
    * Cancels a subscription immediately or at the end of the current period.
+   * Respects plan policy early cancellation restrictions.
    */
   static async cancelSubscription(
     id: string,
@@ -505,8 +699,15 @@ export class SubscriptionService {
   ) {
     const sub = await this.getSubscriptionById(id);
 
-    if (sub.status === SubscriptionStatus.CANCELLED) {
-      throw new BusinessRuleError("Subscription is already cancelled");
+    if (sub.status === SubscriptionStatus.CANCELLED || sub.status === SubscriptionStatus.EXPIRED) {
+      throw new BusinessRuleError("Subscription is already cancelled/closed");
+    }
+
+    // Verify plan policy allows early closure if effective immediately
+    if (effectiveImmediately && !PlanPolicyHelper.canCloseEarly(sub.plan)) {
+      throw new BusinessRuleError(
+        "The configured plan policy disallows early cancellation. Subscription can only be cancelled at the end of the current billing period."
+      );
     }
 
     const now = new Date();
@@ -518,10 +719,11 @@ export class SubscriptionService {
       data: {
         status: newStatus,
         cancelledAt,
-        cancellationReason: cancellationReason || null,
+        cancellationReason: cancellationReason || "Cancelled by user",
       },
       include: {
         customer: true,
+        plan: true,
         items: true,
         invoices: true,
       },
@@ -536,6 +738,122 @@ export class SubscriptionService {
       afterData: updated,
     });
 
-    return updated;
+    return this.enrichSubscription(updated);
+  }
+
+  /**
+   * Explicit contractual renewal of subscription term.
+   */
+  static async renewSubscription(
+    id: string,
+    data: { renewalDurationMonths?: number; notes?: string | null },
+    actorUserId?: string | null
+  ) {
+    const sub = await this.getSubscriptionById(id);
+
+    if (sub.status === SubscriptionStatus.CANCELLED || sub.status === SubscriptionStatus.EXPIRED) {
+      throw new BusinessRuleError("Cannot renew a cancelled or expired subscription");
+    }
+
+    // Verify plan allows renewal
+    if (!PlanPolicyHelper.canRenew(sub.plan)) {
+      throw new BusinessRuleError("The configured plan policy disallows contractual renewal");
+    }
+
+    const durationMonths = data.renewalDurationMonths || 12;
+    const newPeriodEnd = new Date(sub.currentPeriodEnd.getTime());
+    newPeriodEnd.setUTCMonth(newPeriodEnd.getUTCMonth() + durationMonths);
+
+    const renewalNote = `[RENEWAL: Extended by ${durationMonths} months until ${newPeriodEnd.toISOString()}]`;
+    const notes = sub.cancellationReason
+      ? `${sub.cancellationReason}\n${renewalNote}`
+      : renewalNote;
+
+    const updated = await prisma.subscription.update({
+      where: { id },
+      data: {
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodEnd: newPeriodEnd,
+        cancellationReason: notes,
+      },
+      include: {
+        customer: true,
+        plan: true,
+        items: true,
+        invoices: true,
+      },
+    });
+
+    await createAuditLog({
+      actorUserId,
+      action: "RENEW_SUBSCRIPTION",
+      entityType: "SUBSCRIPTION",
+      entityId: id,
+      beforeData: sub,
+      afterData: updated,
+    });
+
+    return this.enrichSubscription(updated);
+  }
+
+  /**
+   * Identifies and automatically closes subscriptions that have reached contractual expiry.
+   */
+  static async autoCloseExpiredSubscriptions(targetDate: Date = new Date()) {
+    const candidates = await prisma.subscription.findMany({
+      where: {
+        status: SubscriptionStatus.ACTIVE,
+        OR: [
+          {
+            plan: {
+              endDate: {
+                not: null,
+                lte: targetDate,
+              },
+            },
+          },
+          {
+            cancelledAt: {
+              not: null,
+              lte: targetDate,
+            },
+          },
+          {
+            cancellationReason: {
+              contains: "[CONTRACT_EXPIRES]",
+            },
+          },
+        ],
+      },
+      include: {
+        plan: true,
+      },
+    });
+
+    let closedCount = 0;
+
+    for (const sub of candidates) {
+      if (PlanPolicyHelper.shouldAutoClose(sub.plan)) {
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: {
+            status: SubscriptionStatus.EXPIRED,
+            cancelledAt: new Date(),
+            cancellationReason: "Auto-closed: Contract reached contractual expiry date",
+          },
+        });
+
+        await createAuditLog({
+          action: "AUTO_CLOSE_SUBSCRIPTION",
+          entityType: "SUBSCRIPTION",
+          entityId: sub.id,
+          afterData: { reason: "Contract reached expiry date" },
+        });
+
+        closedCount++;
+      }
+    }
+
+    return { processed: candidates.length, closedCount };
   }
 }

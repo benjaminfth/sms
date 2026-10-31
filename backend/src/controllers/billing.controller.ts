@@ -6,8 +6,16 @@ export class BillingController {
   static async executeBillingRun(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const targetDate = req.body?.targetDate ? new Date(req.body.targetDate) : new Date();
-      const result = await BillingService.executeBillingRun(
+      const options = {
         targetDate,
+        batchSize: req.body?.batchSize,
+        retryFailedOnly: req.body?.retryFailedOnly,
+        maxRetries: req.body?.maxRetries,
+        autoCloseExpired: req.body?.autoCloseExpired,
+      };
+
+      const result = await BillingService.executeBillingRun(
+        options,
         req.user?.userId
       );
       AppResponse.success(res, result);
@@ -43,4 +51,3 @@ export class BillingController {
     }
   }
 }
-

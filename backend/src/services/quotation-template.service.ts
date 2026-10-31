@@ -1,20 +1,93 @@
 import { prisma } from "../database/prisma";
 import { NotFoundError } from "../utils/errors";
 import { PaginationParams } from "../utils/response";
+import { QuotationTemplateConfig, PaymentTerms, TemplateLineConfig } from "@sms/shared";
 
 export class QuotationTemplateService {
+  /**
+   * Helper to parse stored template configuration from description field.
+   */
+  static parseTemplate(template: any) {
+    if (!template) return template;
+
+    let config: QuotationTemplateConfig = {
+      validityDays: 15,
+      paymentTerms: "NET_15",
+      termsAndConditions: "",
+      lines: [],
+    };
+    let cleanDescription = template.description || "";
+
+    if (template.description && template.description.trim().startsWith("{")) {
+      try {
+        const parsed = JSON.parse(template.description);
+        cleanDescription = parsed.summary || parsed.description || "";
+        config = {
+          validityDays: parsed.validityDays ?? 15,
+          paymentTerms: parsed.paymentTerms ?? "NET_15",
+          termsAndConditions: parsed.termsAndConditions ?? "",
+          planId: parsed.planId ?? null,
+          lines: parsed.lines ?? [],
+        };
+      } catch {
+        // Use default config if JSON parsing fails
+      }
+    }
+
+    return {
+      ...template,
+      description: cleanDescription,
+      config,
+    };
+  }
+
+  /**
+   * Encodes template configuration and summary into description string for Prisma.
+   */
+  static encodeDescription(
+    summary?: string | null,
+    config?: QuotationTemplateConfig
+  ): string {
+    const payload = {
+      summary: summary || "",
+      validityDays: config?.validityDays ?? 15,
+      paymentTerms: config?.paymentTerms ?? "NET_15",
+      termsAndConditions: config?.termsAndConditions ?? "",
+      planId: config?.planId ?? null,
+      lines: config?.lines ?? [],
+    };
+    return JSON.stringify(payload);
+  }
+
   static async createTemplate(data: {
     name: string;
     description?: string | null;
+    validityDays?: number;
+    paymentTerms?: PaymentTerms;
+    termsAndConditions?: string | null;
+    planId?: string | null;
+    lines?: TemplateLineConfig[];
     isActive?: boolean;
   }) {
-    return prisma.quotationTemplate.create({
+    const config: QuotationTemplateConfig = {
+      validityDays: data.validityDays ?? 15,
+      paymentTerms: data.paymentTerms ?? "NET_15",
+      termsAndConditions: data.termsAndConditions || "",
+      planId: data.planId || null,
+      lines: data.lines || [],
+    };
+
+    const encoded = this.encodeDescription(data.description, config);
+
+    const created = await prisma.quotationTemplate.create({
       data: {
         name: data.name,
-        description: data.description,
+        description: encoded,
         isActive: data.isActive ?? true,
       },
     });
+
+    return this.parseTemplate(created);
   }
 
   static async getTemplates(query: {
@@ -31,7 +104,7 @@ export class QuotationTemplateService {
       where.name = { contains: query.search, mode: "insensitive" };
     }
 
-    const [templates, total] = await Promise.all([
+    const [rawTemplates, total] = await Promise.all([
       prisma.quotationTemplate.findMany({
         where,
         skip,
@@ -41,6 +114,7 @@ export class QuotationTemplateService {
       prisma.quotationTemplate.count({ where }),
     ]);
 
+    const templates = rawTemplates.map((t) => this.parseTemplate(t));
     const pagination: PaginationParams = { page, pageSize, total };
     return { templates, pagination };
   }
@@ -52,7 +126,7 @@ export class QuotationTemplateService {
     if (!template) {
       throw new NotFoundError("Quotation template not found");
     }
-    return template;
+    return this.parseTemplate(template);
   }
 
   static async updateTemplate(
@@ -60,14 +134,41 @@ export class QuotationTemplateService {
     data: {
       name?: string;
       description?: string | null;
+      validityDays?: number;
+      paymentTerms?: PaymentTerms;
+      termsAndConditions?: string | null;
+      planId?: string | null;
+      lines?: TemplateLineConfig[];
       isActive?: boolean;
     }
   ) {
-    await this.getTemplateById(id);
-    return prisma.quotationTemplate.update({
+    const existing = await this.getTemplateById(id);
+
+    const config: QuotationTemplateConfig = {
+      validityDays: data.validityDays ?? existing.config?.validityDays ?? 15,
+      paymentTerms: data.paymentTerms ?? existing.config?.paymentTerms ?? "NET_15",
+      termsAndConditions:
+        data.termsAndConditions !== undefined
+          ? data.termsAndConditions || ""
+          : existing.config?.termsAndConditions || "",
+      planId:
+        data.planId !== undefined ? data.planId : existing.config?.planId || null,
+      lines: data.lines !== undefined ? data.lines : existing.config?.lines || [],
+    };
+
+    const summary = data.description !== undefined ? data.description : existing.description;
+    const encoded = this.encodeDescription(summary, config);
+
+    const updated = await prisma.quotationTemplate.update({
       where: { id },
-      data,
+      data: {
+        name: data.name ?? existing.name,
+        description: encoded,
+        isActive: data.isActive !== undefined ? data.isActive : existing.isActive,
+      },
     });
+
+    return this.parseTemplate(updated);
   }
 
   static async deleteTemplate(id: string) {
@@ -77,4 +178,3 @@ export class QuotationTemplateService {
     });
   }
 }
-

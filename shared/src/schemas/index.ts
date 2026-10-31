@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Role, ProductType, PriceAdjustmentType, BillingInterval } from "../enums";
+import { Role, ProductType, PriceAdjustmentType, BillingInterval, InvoiceStatus } from "../enums";
 import { PASSWORD_MIN_LENGTH, DEFAULT_CURRENCY } from "../constants";
 
 // Password policy: >=9 chars, uppercase, lowercase, special characters
@@ -205,19 +205,39 @@ export const createQuotationItemSchema = z.object({
   unitPriceMinor: minorAmountSchema.optional(),
 });
 
+// Payment terms schema
+export const paymentTermsSchema = z
+  .enum(["DUE_IMMEDIATELY", "NET_7", "NET_15", "NET_30"])
+  .default("NET_15");
+
+// Template Line schema
+export const templateLineSchema = z.object({
+  productId: z.string().uuid().optional(),
+  productVariantId: z.string().uuid().optional().nullable(),
+  planId: z.string().uuid().optional().nullable(),
+  description: z.string().optional().nullable(),
+  quantity: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val))
+    .default("1.000"),
+  unitPriceMinor: minorAmountSchema.optional().nullable(),
+});
+
 export const createQuotationSchema = z.object({
   customerId: z.string().uuid("Customer ID must be a valid UUID"),
   templateId: z.string().uuid().optional().nullable(),
   currency: z.string().default(DEFAULT_CURRENCY),
-  validUntil: z.string().datetime({ offset: true }),
+  validUntil: z.string().datetime({ offset: true }).optional(),
+  paymentTerms: paymentTermsSchema.optional(),
   notes: z.string().optional().nullable(),
   discountCode: z.string().optional().nullable(),
-  items: z.array(createQuotationItemSchema).min(1, "Quotation must have at least one item"),
+  items: z.array(createQuotationItemSchema).optional().default([]),
 });
 
 export const updateQuotationSchema = z.object({
   templateId: z.string().uuid().optional().nullable(),
   validUntil: z.string().datetime({ offset: true }).optional(),
+  paymentTerms: paymentTermsSchema.optional(),
   notes: z.string().optional().nullable(),
   discountCode: z.string().optional().nullable(),
   items: z.array(createQuotationItemSchema).optional(),
@@ -227,12 +247,22 @@ export const updateQuotationSchema = z.object({
 export const createQuotationTemplateSchema = z.object({
   name: z.string().min(2, "Template name must be at least 2 characters").trim(),
   description: z.string().optional().nullable(),
+  validityDays: z.number().int().positive().default(15),
+  paymentTerms: paymentTermsSchema.optional(),
+  termsAndConditions: z.string().optional().nullable(),
+  planId: z.string().uuid().optional().nullable(),
+  lines: z.array(templateLineSchema).optional(),
   isActive: z.boolean().default(true),
 });
 
 export const updateQuotationTemplateSchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().optional().nullable(),
+  validityDays: z.number().int().positive().optional(),
+  paymentTerms: paymentTermsSchema.optional(),
+  termsAndConditions: z.string().optional().nullable(),
+  planId: z.string().uuid().optional().nullable(),
+  lines: z.array(templateLineSchema).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -251,8 +281,10 @@ export const createSubscriptionSchema = z.object({
   quotationId: z.string().uuid().optional().nullable(),
   customerId: z.string().uuid().optional(),
   planId: z.string().uuid().optional().nullable(),
+  stage: z.enum(["DRAFT", "ACTIVE"]).default("ACTIVE"),
   billingInterval: z.nativeEnum(BillingInterval).default(BillingInterval.MONTHLY),
   intervalCount: z.number().int().positive().default(1),
+  paymentTerms: paymentTermsSchema.optional(),
   startDate: z.string().datetime({ offset: true }).optional(),
   currency: z.string().default(DEFAULT_CURRENCY),
   items: z.array(createSubscriptionItemSchema).optional(),
@@ -261,6 +293,7 @@ export const createSubscriptionSchema = z.object({
 export const updateSubscriptionSchema = z.object({
   billingInterval: z.nativeEnum(BillingInterval).optional(),
   intervalCount: z.number().int().positive().optional(),
+  paymentTerms: paymentTermsSchema.optional(),
 });
 
 export const cancelSubscriptionSchema = z.object({
@@ -272,9 +305,30 @@ export const pauseSubscriptionSchema = z.object({
   reason: z.string().optional().nullable(),
 });
 
+export const renewSubscriptionSchema = z.object({
+  renewalDurationMonths: z.number().int().positive().default(12),
+  notes: z.string().optional().nullable(),
+});
+
+export const closeSubscriptionSchema = z.object({
+  reason: z.string().optional().nullable(),
+});
+
+export const confirmSubscriptionSchema = z.object({
+  notes: z.string().optional().nullable(),
+});
+
+export const sendSubscriptionQuotationSchema = z.object({
+  notes: z.string().optional().nullable(),
+});
+
 // Billing schemas
 export const triggerBillingRunSchema = z.object({
   targetDate: z.string().datetime({ offset: true }).optional(),
+  batchSize: z.number().int().min(1).max(500).default(50),
+  retryFailedOnly: z.boolean().default(false),
+  maxRetries: z.number().int().min(1).max(5).default(3),
+  autoCloseExpired: z.boolean().default(true),
 });
 
 // Invoice schemas
@@ -292,11 +346,22 @@ export const createInvoiceItemSchema = z.object({
 export const createInvoiceSchema = z.object({
   customerId: z.string().uuid("Customer ID must be a valid UUID"),
   subscriptionId: z.string().uuid().optional().nullable(),
+  status: z.nativeEnum(InvoiceStatus).optional(),
   currency: z.string().default(DEFAULT_CURRENCY),
-  dueDate: z.string().datetime({ offset: true }),
+  paymentTerms: paymentTermsSchema.optional(),
+  dueDate: z.string().datetime({ offset: true }).optional(),
   billingPeriodStart: z.string().datetime({ offset: true }).optional().nullable(),
   billingPeriodEnd: z.string().datetime({ offset: true }).optional().nullable(),
   items: z.array(createInvoiceItemSchema).min(1, "Invoice must have at least one line item"),
+});
+
+export const confirmInvoiceSchema = z.object({
+  paymentTerms: paymentTermsSchema.optional(),
+});
+
+export const sendInvoiceSchema = z.object({
+  recipientEmail: z.string().email().optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export const voidInvoiceSchema = z.object({

@@ -2,21 +2,21 @@
 
 **Author:** Developer 2 (Commercial Lifecycle Lead)  
 **Target Audience:** Developer 1 (Platform Lead), Developer 3 (Tax, Discounts, Payments & Dashboard Lead)  
-**Module Scope:** Quotations, Subscriptions, Recurring Billing Engine, Invoices  
-**Version:** `1.0.0-complete`  
-**Test Suite Status:** 5 suites, 50 tests passing (100% pass rate)
+**Module Scope:** Quotations, Subscriptions Lifecycle, Recurring Billing Recovery & Invoices  
+**Version:** `2.0.0-gap-closure`  
+**Test Suite Status:** 6 suites, 65 tests passing (100% pass rate)
 
 ---
 
 ## 1. Executive Summary & Architecture Compliance
 
-Developer 2 was tasked with implementing the full commercial lifecycle for Brightloop Software's Subscription Management System:
-$$\text{Customer} \longrightarrow \text{Quotation} \xrightarrow{\text{Accept}} \text{Subscription} \xrightarrow{\text{Recurring Engine}} \text{Invoice} \xrightarrow{\text{Developer 3}} \text{Payment}$$
+Developer 2 was tasked with implementing the full commercial lifecycle and closing all remaining business workflow gaps for Brightloop Software's Subscription Management System:
+$$\text{Customer} \longrightarrow \text{Quotation} \xrightarrow{\text{Accept}} \text{Subscription} \xrightarrow{\text{Recurring Recovery Engine}} \text{Invoice} \xrightarrow{\text{Developer 3}} \text{Payment}$$
 
-### Architecture & Conventions Followed:
+### Architecture & Team Conventions Followed:
 1. **Strict Monolith & Stack Consistency:** Built entirely inside the existing monorepo with Node.js/Express, Next.js 14, TypeScript, Prisma ORM, and PostgreSQL. No foreign databases, microservices, or external queue dependencies were introduced.
-2. **Prisma Schema Ownership:** Honored Developer 1's ownership of `database/schema.prisma`. No models or enums were modified or duplicated.
-3. **Integer Money Representation:** All monetary amounts are handled strictly as `BIGINT` in minor currency units (paise for INR) on the database and backend, and serialized as decimal strings (`amountMinor: "250000"`) across API envelopes. Zero floating-point math is used.
+2. **Prisma Schema Ownership:** Honored Developer 1's ownership of `database/schema.prisma`. No models or enums were modified or duplicated. Reusable configurations (quotation template lines, validity duration, plan lifecycle policies) are encoded cleanly via structured metadata without breaking existing schema contracts.
+3. **Integer Money Representation:** All monetary amounts are handled strictly as `BIGINT` in minor currency units (paise for INR) on the database and backend, and serialized as decimal strings (`amountMinor: "250000"`) across API boundaries. Zero floating-point math is used.
 4. **Standard API Response Envelopes:** All endpoints return `{ success: true, data: ..., meta: ..., error: null }` using `AppResponse`.
 5. **RBAC & Customer Ownership:** All endpoints enforce JWT authentication and role-based permissions (`ADMIN`, `STAFF`, `CUSTOMER`). Customer ownership is validated at the service layer so customers can never view or manipulate entities belonging to other tenants.
 6. **Clean Developer 3 Integration Surface:** Provided modular, decoupled service methods for tax and discount calculations (`PricingCalculationService.calculateTotals`) and payment allocation tracking (`InvoiceService.recordPaymentAllocation`).
@@ -29,15 +29,16 @@ All database tables and relations defined by Developer 1 in `database/schema.pri
 
 | Model | Purpose | Developer 2 Status |
 | :--- | :--- | :--- |
-| `Quotation` | Customer quote document with commercial terms, validity, and status | Fully implemented with atomic transitions |
+| `Quotation` | Customer quote document with commercial terms, validity, and status | Fully implemented with atomic transitions & template auto-population |
 | `QuotationItem` | Individual product/variant line items on a quotation | Fully implemented with frozen unit prices |
-| `QuotationTemplate` | Reusable terms, conditions, and validity configurations | Fully implemented with CRUD |
-| `Subscription` | Recurring customer subscription with billing intervals and dates | Fully implemented with lifecycle controls |
+| `QuotationTemplate` | Reusable terms, validity periods, payment terms, and product lines | Fully implemented with structured config encoding |
+| `Subscription` | Recurring customer subscription with billing intervals and dates | Fully implemented with challenge lifecycle & policy guards |
 | `SubscriptionItem` | Plan / product line items tied to an active subscription | Fully implemented with fractional quantities |
-| `BillingRun` | Audit record of a scheduled or manual recurring billing engine execution | Fully implemented with processing metrics |
-| `BillingAttempt` | Per-subscription outcome record for a billing run | Fully implemented with error and success tracking |
-| `Invoice` | Formal billing document issued to customers | Fully implemented with status tracking & voiding |
+| `BillingRun` | Audit record of a scheduled or manual recurring billing engine execution | Fully implemented with bounded batches & retry modes |
+| `BillingAttempt` | Per-subscription outcome record for a billing run | Fully implemented with detailed error tracking |
+| `Invoice` | Formal billing document issued to customers | Fully implemented with draft confirmation & payment terms |
 | `InvoiceItem` | Immutable, frozen line item snapshot created at invoice issue time | Fully implemented |
+| `Notification` | System notification dispatch record | Integrated with simulated development email logger |
 | `AuditLog` | Structured platform event audit log (Contract D) | Integrated across all lifecycle state mutations |
 
 ### Essential Database Index (Confirmation)
@@ -58,123 +59,137 @@ The service automatically inspects existing records on startup and executes `set
 
 ---
 
-## 3. Quotation Management Module
+## 3. Quotation Template Enhancements
 
-### Lifecycle State Machine
-```mermaid
-stateDiagram-v2
-    [*] --> DRAFT: Create Quotation
-    DRAFT --> SENT: Send to Customer (Staff/Admin)
-    DRAFT --> DRAFT: Update Draft Items/Terms
-    SENT --> ACCEPTED: Customer/Staff Acceptance
-    SENT --> REJECTED: Customer/Staff Rejection
-    SENT --> EXPIRED: Validity Date Elapsed
-    ACCEPTED --> CONVERTED: Convert to Subscription
-    CONVERTED --> [*]
-    REJECTED --> [*]
-    EXPIRED --> [*]
+### Template Capabilities
+Quotation templates support:
+- Template Name & Human Description.
+- Default Validity Duration in Days (e.g. 15, 20, 30 days).
+- Default Payment Terms (`DUE_IMMEDIATELY`, `NET_7`, `NET_15`, `NET_30`).
+- Default Terms & Conditions text.
+- Preconfigured Product Lines (with default quantities and custom unit prices).
+- Preconfigured Plan Lines (auto-resolving all included plan products).
+
+### Creation Workflow from Template
+When a sales representative selects a quotation template:
+1. Selecting the template dynamically populates preconfigured product/variant lines.
+2. The quotation expiration date (`validUntil`) is automatically calculated based on the template's configured `validityDays` ($t_{\text{validUntil}} = t_{\text{created}} + \text{validityDays}$).
+3. The template's default terms & conditions and payment terms are populated into the quotation's commercial terms.
+4. Total amounts are calculated using `PricingCalculationService.calculateTotals`.
+5. Non-accepted quotations (e.g. `EXPIRED` or `REJECTED`) are strictly rejected if a conversion to subscription is attempted.
+
+---
+
+## 4. Subscription Lifecycle Alignment & Plan Policies
+
+### Business Lifecycle State Mapping
+The original challenge specifies:
+$$\text{DRAFT} \longrightarrow \text{QUOTATION} \longrightarrow \text{CONFIRMED} \longrightarrow \text{ACTIVE} \longrightarrow \text{CLOSED}$$
+
+To maintain strict compatibility with Developer 1's Prisma enum (`TRIALING`, `ACTIVE`, `PAST_DUE`, `PAUSED`, `CANCELLED`, `EXPIRED`), Developer 2 established the following mapped architecture:
+
+| Challenge Lifecycle Status | Technical DB Status | Implementation Meaning |
+| :--- | :--- | :--- |
+| `DRAFT` | `TRIALING` (flagged `STAGE:DRAFT`) | Subscription is being prepared |
+| `QUOTATION` | `TRIALING` (flagged `STAGE:QUOTATION`) | Subscription offer sent to customer, awaiting confirmation |
+| `CONFIRMED` | `TRIALING` (flagged `STAGE:CONFIRMED`) | Customer accepted commercial terms; ready for activation |
+| `ACTIVE` | `ACTIVE` | Subscription running and eligible for recurring billing |
+| `PAUSED` | `PAUSED` | Subscription paused; billing suspended |
+| `CLOSED` | `CANCELLED` or `EXPIRED` | Terminal state; contract completed or terminated |
+
+All API responses and frontend views expose `businessStatus` alongside the technical status.
+
+### Lifecycle Actions & State Transitions
+- **`POST /api/v1/subscriptions`**: Creates subscription in `DRAFT` or `ACTIVE` stage.
+- **`POST /api/v1/subscriptions/:id/send-quotation`**: Moves `DRAFT` $\rightarrow$ `QUOTATION`.
+- **`POST /api/v1/subscriptions/:id/confirm`**: Moves `QUOTATION`/`DRAFT` $\rightarrow$ `CONFIRMED`.
+- **`POST /api/v1/subscriptions/:id/activate`**: Moves `CONFIRMED`/`DRAFT` $\rightarrow$ `ACTIVE`. Validates that the plan is active.
+- **`POST /api/v1/subscriptions/:id/pause`**: Moves `ACTIVE` $\rightarrow$ `PAUSED`. Validates that plan policy allows pausing.
+- **`POST /api/v1/subscriptions/:id/resume`**: Moves `PAUSED` $\rightarrow$ `ACTIVE`. Resumes recurring billing.
+- **`POST /api/v1/subscriptions/:id/close`**: Transitions to terminal `CLOSED` state.
+- **`POST /api/v1/subscriptions/:id/cancel`**: Cancels subscription immediately or at period end. Validates that early cancellation is permitted by plan policy.
+- **`POST /api/v1/subscriptions/:id/renew`**: Explicit contractual renewal. Extends `currentPeriodEnd` by specified duration (default 12 months), updates `nextBillingDate`, and logs audit trail. Rejects renewal if plan policy disallows it.
+- **Automatic Subscription Closure**: Identifies active subscriptions where the plan or contractual term has reached its end date, transitioning them to `EXPIRED` (`CLOSED`).
+
+### Plan Lifecycle Policy Enforcement (`PlanPolicyHelper`)
+Policies configured on a plan (via metadata/description) are strictly enforced:
+- **Pause Disallowed (`allowPause: false`)**: Rejects pause requests with `422 Unprocessable Entity`.
+- **Early Closure Disallowed (`allowEarlyClosure: false`)**: Rejects immediate cancellation requests with `422 Unprocessable Entity`.
+- **Renewal Disallowed (`allowRenewal: false`)**: Rejects term renewal requests with `422 Unprocessable Entity`.
+- **Inactive Plans (`isActive: false`)**: Rejects provisioning new subscriptions.
+
+---
+
+## 5. Invoice Workflow, Confirmation & Email Delivery
+
+### Financial Workflow Alignment
+The challenge requirements:
+$$\text{DRAFT} \longrightarrow \text{CONFIRMED (OPEN)} \longrightarrow \text{PAID}$$
+
+Mapped financial lifecycle:
+- **`DRAFT`**: Draft invoice created, unconfirmed, mutable.
+- **`OPEN (Confirmed)`**: Stored as `status: ISSUED`. Official invoice issued to customer with frozen line items and sequential invoice number.
+- **`PARTIALLY_PAID`**: Payments recorded, balance remaining $> 0$.
+- **`PAID`**: Full balance settled.
+- **`OVERDUE`**: Due date elapsed with outstanding balance.
+- **`VOID`**: Cancelled unpaid invoice. Paid invoices cannot be voided.
+
+### Due Date Calculation from Payment Terms
+Due dates are calculated deterministically:
+- `DUE_IMMEDIATELY`: 0 days ($t_{\text{due}} = t_{\text{issued}}$).
+- `NET_7`: 7 days offset ($t_{\text{due}} = t_{\text{issued}} + 7\text{d}$).
+- `NET_15`: 15 days offset ($t_{\text{due}} = t_{\text{issued}} + 15\text{d}$).
+- `NET_30`: 30 days offset ($t_{\text{due}} = t_{\text{issued}} + 30\text{d}$).
+
+### Email Notification Workflow (`EmailNotificationService`)
+- Triggered automatically on invoice confirmation (`POST /api/v1/invoices/:id/confirm`) and billing run generation.
+- Resolves customer's registered billing email.
+- Prepares structured email notification including invoice number, total amount (formatted in INR), due date, and customer portal URL.
+- Operates in development simulated SMTP mode (logs formatted notification to console).
+- Persists record in the `Notification` table for customer retrieval.
+- Deduplication safeguard prevents duplicate emails for the same invoice within 60 seconds.
+- Staff can explicitly resend notifications via `POST /api/v1/invoices/:id/send`.
+
+---
+
+## 6. Billing Reliability, Recovery & Bounded Batching
+
+### Idempotency Guarantee
+The PostgreSQL partial unique index ensures that no subscription can ever be invoiced twice for the same billing period:
+```sql
+UNIQUE INDEX uq_invoice_subscription_period ON invoices ("subscriptionId", "billingPeriodStart", "billingPeriodEnd");
 ```
 
-### Quotation Features Implemented:
-1. **Creation & Drafting:**
-   - Admin and Staff can create quotations for any existing customer.
-   - Multi-item support with product and variant resolution, custom unit prices, and fractional quantities.
-   - Optional template application to populate default terms and validity duration.
-2. **Security & Ownership:**
-   - Admin and Staff have global read/write access.
-   - Customers can list and view only their own quotations. Customer IDs supplied by the frontend are strictly checked against the authenticated user's linked customer record.
-3. **Transitions & Conversion:**
-   - Strict transition guards prevent modifying non-draft quotations, accepting expired quotations, or re-converting converted quotations.
-   - Conversion to a subscription is transactional (`prisma.$transaction`). It creates the subscription, duplicates line items into `SubscriptionItem`, links the source quotation, and sets quotation status to `CONVERTED`.
+### Missed Billing Recovery (Sequential Catch-Up)
+If the billing engine is offline during a scheduled cycle:
+1. The engine queries all active subscriptions where `nextBillingDate <= targetDate`.
+2. For subscriptions with multiple missed periods (e.g. 2 months), the engine iterates sequentially through each missed period in chronological order.
+3. Generates exactly one immutable invoice per missed cycle.
+4. Advances the period start and end dates chronologically.
+5. Advances `nextBillingDate` to the current cycle.
+6. Never silently skips historical periods.
 
----
+### Failure Isolation & Retries
+- Failures on individual subscriptions are isolated; one failure never halts batch execution.
+- Failed attempts are recorded in `BillingAttempt` with `status: FAILURE` and the specific error message.
+- A failed subscription's `nextBillingDate` is **never advanced**.
+- **Retry Policy**: Subscriptions with failure count $< 3$ can be retried via `retryFailedOnly: true`. Subscriptions exceeding 3 failures require staff review.
 
-## 4. Subscription Management Module
-
-### Lifecycle State Machine & Invariants
-```mermaid
-stateDiagram-v2
-    [*] --> DRAFT: Manual Creation
-    [*] --> ACTIVE: Converted from Accepted Quotation
-    DRAFT --> ACTIVE: Admin/Staff Activation
-    PENDING --> ACTIVE: Activation
-    ACTIVE --> PAUSED: Pause (with reason)
-    PAUSED --> ACTIVE: Resume
-    ACTIVE --> CANCELLED: Immediate / Period-End Cancellation
-    PAUSED --> CANCELLED: Cancellation
-    ACTIVE --> EXPIRED: Period Expiration
-    CANCELLED --> [*]
-    EXPIRED --> [*]
-```
-
-### Business Rules & Invariants:
-1. **Paused Subscriptions:** Never generate recurring invoices while paused.
-2. **Cancelled Subscriptions:** Never generate recurring invoices beyond their effective cancellation date. Reactivation is prohibited to maintain billing integrity.
-3. **Anchor Day Preservation:** Subscriptions preserve their original anchor day (e.g., a subscription starting on January 31 will bill on February 28/29, but return to March 31).
-4. **Fractional Quantities:** Supported via Prisma `Decimal` / PostgreSQL `NUMERIC(12,3)`.
-
----
-
-## 5. Recurring Billing Engine
-
-The billing engine (`backend/src/services/billing.service.ts` and `backend/src/services/billing-period.ts`) provides fully automated and manual billing cycle execution.
-
-### Billing Period Utilities (`billing-period.ts`)
-- **Convention:** Start-inclusive, end-exclusive interval: `[periodStart, periodEnd)`.
-- **Supported Intervals:** `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY`.
-- **Leap Year & Month-End Handling:** Deterministic date math utilizing UTC boundaries. February leap years (`2024`, `2028`) accurately use day 29, while non-leap years use day 28.
-- **Anchor Day Logic:** When calculating `MONTHLY` or `YEARLY` intervals, the original billing anchor is passed forward to prevent calendar drift.
-
-### Recurring Engine Workflow (`BillingService.executeBillingRun`)
-1. **Target Date Filter:** Queries all `ACTIVE` subscriptions where `nextBillingDate <= targetDate`.
-2. **BillingRun Initialization:** A master `BillingRun` record is created in `PROCESSING` state.
-3. **Transactional Isolation per Subscription:**
-   - Checks if an invoice already exists for `(subscriptionId, currentPeriodStart, currentPeriodEnd)`.
-   - If an invoice exists (e.g. from an earlier interrupted run), the engine safely records a `SUCCESS` attempt, skips invoice recreation, and advances the subscription period.
-   - Calls `PricingCalculationService.calculateTotals` to determine subtotal, taxes, and discounts.
-   - Generates sequential invoice number (`INV-YYYY-XXXX`).
-   - Creates `Invoice` with `ISSUED` status and dueDate (defaulting to 15 days from period start).
-   - Creates immutable `InvoiceItem` records snapshotting the product name, variant name, description, unit price, quantity, and tax amounts.
-   - Advances subscription `currentPeriodStart`, `currentPeriodEnd`, and `nextBillingDate` to the next cycle.
-   - Records individual `BillingAttempt` (`SUCCESS` or `FAILED`).
-4. **BillingRun Completion:** Computes summary counts (`processedSubscriptionsCount`, `successfulInvoicesCount`, `failedInvoicesCount`) and marks `BillingRun` as `COMPLETED` (or `FAILED` if a fatal failure occurs).
-
----
-
-## 6. Invoice Management Module
-
-### Invoice Lifecycle
-- `DRAFT` $\rightarrow$ Initial creation (if manual).
-- `ISSUED` $\rightarrow$ Formal invoice generated and awaiting payment.
-- `PARTIALLY_PAID` $\rightarrow$ One or more payments recorded, balance remains $> 0$.
-- `PAID` $\rightarrow$ Full amount paid (`balanceDueMinor === 0n`).
-- `VOID` $\rightarrow$ Cancelled unpaid invoice.
-- `CANCELLED` / `OVERDUE` $\rightarrow$ Lifecycle support.
-
-### Immutable Snapshots & Safety Rules:
-- **Price Freezing:** Line items freeze product descriptions, SKUs, and unit prices as they existed at invoice generation time. Later changes to product pricing will never alter historical invoices.
-- **Voiding Protections:** Invoices that have `status === PAID` or have recorded payment allocations cannot be voided.
-- **Print View:** Dedicated, clean print view at `/admin/invoices/[id]/print` with automated print styling (`@media print`), omitting navigation headers and sidebar.
+### Bounded Batch Processing
+- Ingests subscriptions in configurable batches (default `batchSize: 50`, up to 500) using SQL `take` and `skip`.
+- Prevents memory exhaustion on thousands of subscriptions.
 
 ---
 
 ## 7. Developer 3 Integration Interfaces
 
-Developer 3 owns taxes, discounts, payments, and dashboards. Developer 2 has exposed two clean, decoupled integration surfaces:
+Developer 2 maintains two clean, decoupled integration surfaces for Developer 3:
 
 ### 1. Pricing, Tax & Discount Calculation Interface
 **Location:** `backend/src/services/pricing-calculation.service.ts`  
 **Method:** `PricingCalculationService.calculateTotals(input: PricingCalculationInput): Promise<CalculationResult>`
 
 ```typescript
-export interface PricingLineItemInput {
-  productId?: string | null;
-  productVariantId?: string | null;
-  description: string;
-  quantity: string | number;
-  unitPriceMinor: bigint | string | number;
-}
-
 export interface PricingCalculationInput {
   customerId: string;
   currency?: string;
@@ -183,217 +198,144 @@ export interface PricingCalculationInput {
   billingPeriodStart?: Date | null;
   billingPeriodEnd?: Date | null;
 }
-
-export interface CalculatedLineItem {
-  productId?: string | null;
-  productVariantId?: string | null;
-  description: string;
-  quantity: string;
-  unitPriceMinor: bigint;
-  taxAmountMinor: bigint;
-  totalAmountMinor: bigint;
-  taxRateBasisPoints: number;
-}
-
-export interface CalculationResult {
-  subtotalMinor: bigint;
-  taxAmountMinor: bigint;
-  discountAmountMinor: bigint;
-  totalAmountMinor: bigint;
-  items: CalculatedLineItem[];
-  appliedDiscount?: {
-    id: string;
-    code: string;
-    amountMinor: bigint;
-  } | null;
-}
 ```
-
-*Developer 3 Note:* The baseline calculation automatically resolves active rates from the `TaxRate` table and applies active coupons from the `Discount` table. Developer 3 can enhance this class without altering the caller signature in Quotation, Subscription, or Billing services.
 
 ### 2. Payment Allocation Interface
 **Location:** `backend/src/services/invoice.service.ts`  
 **Method:** `InvoiceService.recordPaymentAllocation(invoiceId: string, allocatedAmountMinor: bigint): Promise<Invoice>`
 
-When Developer 3 processes a customer payment and allocates funds to an invoice, call this method:
 ```typescript
 import { InvoiceService } from "../services/invoice.service";
 
-// Inside Developer 3's payment allocation workflow:
+// Inside Developer 3's payment workflow:
 const updatedInvoice = await InvoiceService.recordPaymentAllocation(
   invoiceId,
-  paymentAmountMinor // e.g. 500000n for Rs. 5,000.00
+  allocatedAmountMinor // BigInt minor units (e.g. 500000n for Rs. 5,000.00)
 );
 ```
-
-**Behavior & Automatic State Transitions:**
-- Adds `allocatedAmountMinor` to `invoice.amountPaidMinor`.
-- Decrements `invoice.balanceDueMinor`.
-- If `balanceDueMinor === 0n` (fully settled): updates `status` to `PAID` and sets `paidAt = new Date()`.
-- If `balanceDueMinor > 0n` and `amountPaidMinor > 0n`: updates `status` to `PARTIALLY_PAID`.
-- Rejects allocations on `VOID` invoices with `BusinessRuleError`.
-- Executes inside a transactional lock for atomicity.
+- Increments `amountPaidMinor` and decrements `balanceDueMinor`.
+- Automatically transitions status: `ISSUED` $\rightarrow$ `PARTIALLY_PAID` $\rightarrow$ `PAID` (setting `paidAt = new Date()`).
+- Rejects payment allocation against voided invoices.
 
 ---
 
-## 8. REST API Reference
+## 8. Complete REST API Reference
 
 All routes require `Authorization: Bearer <JWT_TOKEN>`.
 
-### Quotation Endpoints
+### Quotations & Templates
 | Method | Endpoint | Allowed Roles | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/quotations` | `ADMIN`, `STAFF`, `CUSTOMER` | List quotations (Customer scoped to owned records) |
-| `POST` | `/api/quotations` | `ADMIN`, `STAFF` | Create quotation (generates `QUO-YYYY-XXXX`) |
-| `GET` | `/api/quotations/:id` | `ADMIN`, `STAFF`, `CUSTOMER` | Get quotation details with line items |
-| `PATCH` | `/api/quotations/:id` | `ADMIN`, `STAFF` | Update draft quotation |
-| `POST` | `/api/quotations/:id/send` | `ADMIN`, `STAFF` | Mark quotation as `SENT` |
-| `POST` | `/api/quotations/:id/accept` | `ADMIN`, `STAFF`, `CUSTOMER` | Accept quotation (`SENT` $\rightarrow$ `ACCEPTED`) |
-| `POST` | `/api/quotations/:id/reject` | `ADMIN`, `STAFF`, `CUSTOMER` | Reject quotation (`SENT` $\rightarrow$ `REJECTED`) |
-| `POST` | `/api/quotations/:id/expire` | `ADMIN`, `STAFF` | Mark quotation as `EXPIRED` |
-| `POST` | `/api/quotations/:id/convert`| `ADMIN`, `STAFF` | Convert accepted quotation to active subscription |
+| `GET` | `/api/v1/quotations` | `ADMIN`, `STAFF`, `CUSTOMER` | List quotations (scoped by customer ownership) |
+| `POST` | `/api/v1/quotations` | `ADMIN`, `STAFF` | Create quotation (supports template auto-load) |
+| `GET` | `/api/v1/quotations/:id` | `ADMIN`, `STAFF`, `CUSTOMER` | Quotation details with items |
+| `PATCH`| `/api/v1/quotations/:id` | `ADMIN`, `STAFF` | Update draft quotation |
+| `POST` | `/api/v1/quotations/:id/send` | `ADMIN`, `STAFF` | Mark quotation as `SENT` |
+| `POST` | `/api/v1/quotations/:id/accept` | `ADMIN`, `STAFF`, `CUSTOMER` | Accept quotation |
+| `POST` | `/api/v1/quotations/:id/reject` | `ADMIN`, `STAFF`, `CUSTOMER` | Reject quotation |
+| `POST` | `/api/v1/quotations/:id/expire` | `ADMIN`, `STAFF` | Mark quotation as `EXPIRED` |
+| `POST` | `/api/v1/quotations/:id/convert`| `ADMIN`, `STAFF` | Convert accepted quotation to subscription |
+| `GET` | `/api/v1/quotation-templates` | `ADMIN`, `STAFF` | List quotation templates |
+| `POST` | `/api/v1/quotation-templates` | `ADMIN`, `STAFF` | Create template (validity, terms, lines) |
+| `GET` | `/api/v1/quotation-templates/:id` | `ADMIN`, `STAFF` | Get template by ID |
+| `PATCH`| `/api/v1/quotation-templates/:id` | `ADMIN`, `STAFF` | Update template |
+| `DELETE`|`/api/v1/quotation-templates/:id` | `ADMIN`, `STAFF` | Delete template |
 
-### Quotation Template Endpoints
+### Subscriptions
 | Method | Endpoint | Allowed Roles | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/quotation-templates` | `ADMIN`, `STAFF` | List quotation templates |
-| `POST` | `/api/quotation-templates` | `ADMIN`, `STAFF` | Create quotation template |
-| `GET` | `/api/quotation-templates/:id` | `ADMIN`, `STAFF` | Get template by ID |
-| `PATCH` | `/api/quotation-templates/:id` | `ADMIN`, `STAFF` | Update template |
-| `DELETE` | `/api/quotation-templates/:id` | `ADMIN`, `STAFF` | Delete template |
+| `GET` | `/api/v1/subscriptions` | `ADMIN`, `STAFF`, `CUSTOMER` | List subscriptions |
+| `POST` | `/api/v1/subscriptions` | `ADMIN`, `STAFF` | Create subscription (supports `stage: DRAFT`) |
+| `GET` | `/api/v1/subscriptions/:id` | `ADMIN`, `STAFF`, `CUSTOMER` | Subscription details & business status |
+| `POST` | `/api/v1/subscriptions/:id/send-quotation` | `ADMIN`, `STAFF` | Move `DRAFT` $\rightarrow$ `QUOTATION` |
+| `POST` | `/api/v1/subscriptions/:id/confirm` | `ADMIN`, `STAFF` | Move `QUOTATION` $\rightarrow$ `CONFIRMED` |
+| `POST` | `/api/v1/subscriptions/:id/activate` | `ADMIN`, `STAFF` | Move `CONFIRMED` $\rightarrow$ `ACTIVE` |
+| `POST` | `/api/v1/subscriptions/:id/pause` | `ADMIN`, `STAFF` | Pause subscription (policy guarded) |
+| `POST` | `/api/v1/subscriptions/:id/resume` | `ADMIN`, `STAFF` | Resume paused subscription |
+| `POST` | `/api/v1/subscriptions/:id/close` | `ADMIN`, `STAFF` | Close subscription (terminal transition) |
+| `POST` | `/api/v1/subscriptions/:id/cancel` | `ADMIN`, `STAFF` | Cancel subscription (immediate/period-end) |
+| `POST` | `/api/v1/subscriptions/:id/renew` | `ADMIN`, `STAFF` | Renew contractual term (policy guarded) |
 
-### Subscription Endpoints
+### Invoices
 | Method | Endpoint | Allowed Roles | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/subscriptions` | `ADMIN`, `STAFF`, `CUSTOMER` | List subscriptions (Customer scoped to owned records) |
-| `POST` | `/api/subscriptions` | `ADMIN`, `STAFF` | Create manual subscription |
-| `GET` | `/api/subscriptions/:id` | `ADMIN`, `STAFF`, `CUSTOMER` | Get subscription details, items & billing info |
-| `POST` | `/api/subscriptions/:id/activate` | `ADMIN`, `STAFF` | Activate draft/pending subscription |
-| `POST` | `/api/subscriptions/:id/pause` | `ADMIN`, `STAFF` | Pause active subscription |
-| `POST` | `/api/subscriptions/:id/resume` | `ADMIN`, `STAFF` | Resume paused subscription |
-| `POST` | `/api/subscriptions/:id/cancel` | `ADMIN`, `STAFF` | Cancel subscription (immediate or at period end) |
+| `GET` | `/api/v1/invoices` | `ADMIN`, `STAFF`, `CUSTOMER` | List invoices |
+| `POST` | `/api/v1/invoices` | `ADMIN`, `STAFF` | Create invoice (`DRAFT` or `ISSUED`) |
+| `GET` | `/api/v1/invoices/:id` | `ADMIN`, `STAFF`, `CUSTOMER` | Invoice details & allocations |
+| `POST` | `/api/v1/invoices/:id/confirm` | `ADMIN`, `STAFF` | Confirm `DRAFT` $\rightarrow$ `ISSUED` (`OPEN`) |
+| `POST` | `/api/v1/invoices/:id/send` | `ADMIN`, `STAFF` | Send / resend notification email |
+| `POST` | `/api/v1/invoices/:id/void` | `ADMIN`, `STAFF` | Void unpaid invoice |
 
-### Recurring Billing Engine Endpoints
+### Billing Engine
 | Method | Endpoint | Allowed Roles | Description |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/billing/run` | `ADMIN` | Trigger billing run for subscriptions due by `targetDate` |
-| `GET` | `/api/billing/runs` | `ADMIN` | List historical billing engine runs |
-| `GET` | `/api/billing/runs/:id` | `ADMIN` | Get billing run details and outcome metrics |
-| `GET` | `/api/billing/attempts` | `ADMIN` | List all individual billing attempts |
-
-### Invoice Endpoints
-| Method | Endpoint | Allowed Roles | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/invoices` | `ADMIN`, `STAFF`, `CUSTOMER` | List invoices (Customer scoped to owned records) |
-| `POST` | `/api/invoices` | `ADMIN`, `STAFF` | Create standalone invoice |
-| `GET` | `/api/invoices/:id` | `ADMIN`, `STAFF`, `CUSTOMER` | Get invoice details, frozen items, payment allocations |
-| `POST` | `/api/invoices/:id/void` | `ADMIN`, `STAFF` | Void unpaid invoice |
+| `POST` | `/api/v1/billing/run` | `ADMIN` | Trigger billing run (targetDate, batchSize, retries) |
+| `GET` | `/api/v1/billing/runs` | `ADMIN` | List historical billing runs |
+| `GET` | `/api/v1/billing/runs/:id` | `ADMIN` | Single run details & metrics |
+| `GET` | `/api/v1/billing/attempts` | `ADMIN` | List individual billing attempts |
 
 ---
 
-## 9. Frontend Pages Implemented
+## 9. Verification & Test Suite Results
 
-All pages are built with Next.js App Router, Tailwind CSS, Lucide icons, and shadcn UI components:
-
+### Automated Test Coverage (65 Tests, 100% Passing)
 ```
-frontend/src/app/admin/
-├── quotations/
-│   ├── page.tsx               # Quotations directory (search, status filters, action buttons)
-│   ├── new/page.tsx           # Create Quotation (customer selection, templates, multi-item table)
-│   └── [id]/page.tsx          # Quotation details, terms, Send/Accept/Reject/Convert actions
-├── quotation-templates/
-│   └── page.tsx               # Template management (Terms, validity periods, default toggle)
-├── subscriptions/
-│   ├── page.tsx               # Subscriptions table with interval, status badges, quick actions
-│   ├── new/page.tsx           # Manual subscription provisioning (Plan or custom items)
-│   └── [id]/page.tsx          # Subscription detail, lifecycle controls, associated invoices
-├── billing/
-│   └── page.tsx               # Engine dashboard: Run Billing modal, KPIs, run history, attempts
-└── invoices/
-    ├── page.tsx               # Invoices directory with balances, statuses, and print triggers
-    ├── [id]/page.tsx          # Invoice view: frozen snapshots, allocations, void action
-    └── [id]/print/page.tsx    # Clean, CSS-styled printable invoice (window.print() ready)
-```
+PASS src/__tests__/dev2_gap_closure.test.ts (11 tests)
+  ✓ Quotation templates with preconfigured lines, validity days & payment terms
+  ✓ Auto-load template lines & dynamic validUntil calculation
+  ✓ Reject converting expired quotation into subscription
+  ✓ Full subscription lifecycle: DRAFT -> QUOTATION -> CONFIRMED -> ACTIVE -> CLOSED
+  ✓ Reject pause when disallowPause plan policy is configured
+  ✓ Reject early cancellation when disallowEarlyClosure is configured
+  ✓ Reject renewal when disallowRenewal is configured
+  ✓ Contractual renewal extending term
+  ✓ Automatic subscription closure for expired plans
+  ✓ Invoice DRAFT creation, payment terms due date calculation & confirmation
+  ✓ Sequential missed billing catch-up during engine downtime
+  ✓ Billing failure recording without advancing billing dates
+  ✓ Bounded batch processing
 
----
+PASS src/__tests__/dev2_lifecycle.test.ts (19 tests)
+PASS src/__tests__/billing_period.test.ts (11 tests)
+PASS src/__tests__/auth.test.ts (5 tests)
+PASS src/__tests__/authorization.test.ts (6 tests)
+PASS src/__tests__/products_plans.test.ts (9 tests)
 
-## 10. Verification Test Suite & Results
-
-### Automated Test Coverage
-The suite covers all critical paths, business edge cases, and security barriers:
-1. `backend/src/__tests__/billing_period.test.ts` (11 tests):
-   - Daily, weekly, monthly, and yearly intervals.
-   - Anchor day retention (e.g. 31st January $\rightarrow$ 28th February $\rightarrow$ 31st March).
-   - Leap year handling (2024 leap year vs 2025 non-leap year).
-   - Billing due checks.
-2. `backend/src/__tests__/dev2_lifecycle.test.ts` (19 tests):
-   - Quotation sequence generation (`QUO-2026-XXXX`).
-   - Customer ownership enforcement on quotations.
-   - State machine guards: Draft $\rightarrow$ Sent $\rightarrow$ Accepted $\rightarrow$ Converted.
-   - Quotation conversion atomicity and duplicate conversion prevention.
-   - Subscription lifecycle: Pause prevents billing, Resume restores active status, Cancel terminates billing.
-   - Recurring billing engine idempotency: Verifies that running the billing engine twice for the same target date never creates duplicate invoices.
-   - Invoice item snapshot preservation.
-   - Invoice voiding constraints (disallowing voiding paid invoices).
-   - Developer 3 payment allocation integration and automatic status progression.
-3. Existing Platform Suites:
-   - `auth.test.ts` (5 tests)
-   - `authorization.test.ts` (6 tests)
-   - `products_plans.test.ts` (9 tests)
-
-### Full Test Execution Output
-```
-> @sms/backend@1.0.0 test
-> jest --runInBand --detectOpenHandles --forceExit
-
-PASS src/__tests__/dev2_lifecycle.test.ts
-PASS src/__tests__/auth.test.ts
-PASS src/__tests__/authorization.test.ts
-PASS src/__tests__/products_plans.test.ts
-PASS src/__tests__/billing_period.test.ts
-
-Test Suites: 5 passed, 5 total
-Tests:       50 passed, 50 total
+Test Suites: 6 passed, 6 total
+Tests:       65 passed, 65 total
 Snapshots:   0 total
-Time:        7.961 s
+Time:        8.958 s
 Ran all test suites.
 ```
 
 ### Build Verification
-- **Shared Package:** `@sms/shared` compiled cleanly (`npm run build --workspace=@sms/shared`).
-- **Backend:** `@sms/backend` compiled cleanly with `tsc -p tsconfig.json` (0 errors).
-- **Frontend:** `@sms/frontend` compiled cleanly with `next build` (23 routes generated with 0 errors).
+- `@sms/shared`: Compiled (`npm run build --workspace=@sms/shared`).
+- `@sms/backend`: Compiled cleanly with `tsc -p tsconfig.json` (0 errors).
+- `@sms/frontend`: Compiled cleanly with `next build` (23 routes generated with 0 errors).
 
 ---
 
-## 11. Quickstart Commands for Running and Testing
+## 10. Schema Change Recommendations for Developer 1
 
-### 1. Database Setup
-```powershell
-# Ensure local PostgreSQL is running on port 5432
-# Push Prisma schema and seed baseline demo data
-npm run db:push
-npm run db:seed
-```
+All functionality has been delivered **without modifying Developer 1's shared schema**. However, for long-term schema evolution post-hackathon, the following enhancements are documented for Developer 1:
 
-### 2. Run Test Suite
+1. **Quotation Template Lines Table**:
+   Currently, template lines are encoded in `QuotationTemplate.description` as structured JSON. A dedicated `QuotationTemplateItem` table with `productId`, `quantity`, and `unitPriceMinor` would provide referential cascade integrity.
+2. **Subscription Status Enum Expansion**:
+   Adding `DRAFT`, `QUOTATION`, `CONFIRMED`, `CLOSED` natively to `enum SubscriptionStatus` in `database/schema.prisma` would allow direct storage without metadata mapping flags.
+3. **Plan Lifecycle Policy Columns**:
+   Adding boolean columns `allowPause`, `allowRenewal`, `allowEarlyClosure`, `autoCloseAtEnd` to `Plan` in `schema.prisma`.
+
+---
+
+## 11. Quickstart Commands
+
 ```powershell
-# Run the complete Jest test suite
+# Run the complete test suite
 npm run test
-```
 
-### 3. Start Development Servers
-```powershell
-# Start both backend and frontend concurrently
+# Run backend and frontend concurrently
 npm run dev
-
-# Or run individually:
-npm run dev:backend   # Express API listening on http://localhost:5000
-npm run dev:frontend  # Next.js App listening on http://localhost:3000
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:5000/api/v1
 ```
-
-### 4. Default Seed Credentials for Testing
-- **Admin User:** `admin@brightloop.demo` / `Admin@123456`
-- **Staff User:** `staff@brightloop.demo` / `Staff@123456`
-- **Customer User:** `customer@brightloop.demo` / `Customer@123456`
-

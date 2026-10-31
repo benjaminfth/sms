@@ -1,7 +1,9 @@
 import { prisma } from "../database/prisma";
-import { InvoiceStatus } from "@sms/shared";
+import { InvoiceStatus, PaymentTerms } from "@sms/shared";
 import { SequenceService } from "../utils/sequence.service";
 import { PricingCalculationService } from "./pricing-calculation.service";
+import { EmailNotificationService } from "./email-notification.service";
+import { calculateDueDateFromPaymentTerms } from "../utils/payment-terms";
 import { createAuditLog } from "./contracts";
 import {
   NotFoundError,
@@ -21,7 +23,9 @@ export interface CreateInvoiceInput {
   customerId: string;
   subscriptionId?: string | null;
   currency?: string;
-  dueDate: string;
+  status?: InvoiceStatus;
+  paymentTerms?: PaymentTerms;
+  dueDate?: string;
   billingPeriodStart?: string | null;
   billingPeriodEnd?: string | null;
   items: CreateInvoiceItemInput[];
@@ -30,7 +34,41 @@ export interface CreateInvoiceInput {
 
 export class InvoiceService {
   /**
+   * Helper to map raw database enum to human-friendly business status.
+   * Clarifies that ISSUED means OPEN (Confirmed & Awaiting Payment).
+   */
+  static computeBusinessStatus(status: InvoiceStatus): string {
+    switch (status) {
+      case InvoiceStatus.DRAFT:
+        return "DRAFT (Unconfirmed)";
+      case InvoiceStatus.ISSUED:
+        return "OPEN (Confirmed)";
+      case InvoiceStatus.PARTIALLY_PAID:
+        return "PARTIALLY_PAID";
+      case InvoiceStatus.PAID:
+        return "PAID";
+      case InvoiceStatus.OVERDUE:
+        return "OVERDUE";
+      case InvoiceStatus.VOID:
+        return "VOID";
+      case InvoiceStatus.CANCELLED:
+        return "CANCELLED";
+      default:
+        return status;
+    }
+  }
+
+  static enrichInvoice(invoice: any) {
+    if (!invoice) return invoice;
+    return {
+      ...invoice,
+      businessStatus: this.computeBusinessStatus(invoice.status),
+    };
+  }
+
+  /**
    * Generates a new invoice with frozen line item snapshots.
+   * Can be created in DRAFT or ISSUED/OPEN status.
    */
   static async createInvoice(
     data: CreateInvoiceInput,
@@ -61,14 +99,22 @@ export class InvoiceService {
     // 2. Generate concurrency-safe sequential invoice number
     const invoiceNumber = await SequenceService.getNextNumber("INV");
 
-    // 3. Create invoice inside transaction
+    // 3. Compute Due Date from Payment Terms if not explicitly provided
+    const terms = data.paymentTerms || "NET_15";
+    const initialStatus = data.status || InvoiceStatus.ISSUED;
+    const issuedAt = initialStatus === InvoiceStatus.DRAFT ? null : new Date();
+    const dueDate = data.dueDate
+      ? new Date(data.dueDate)
+      : calculateDueDateFromPaymentTerms(issuedAt || new Date(), terms);
+
+    // 4. Create invoice inside transaction
     const invoice = await prisma.$transaction(async (tx) => {
       const created = await tx.invoice.create({
         data: {
           invoiceNumber,
           customerId: data.customerId,
           subscriptionId: data.subscriptionId || null,
-          status: InvoiceStatus.ISSUED,
+          status: initialStatus,
           currency: data.currency || customer.currency || "INR",
           subtotalMinor: calculation.subtotalMinor,
           taxAmountMinor: calculation.taxAmountMinor,
@@ -76,10 +122,10 @@ export class InvoiceService {
           totalAmountMinor: calculation.totalAmountMinor,
           amountPaidMinor: 0n,
           balanceDueMinor: calculation.totalAmountMinor,
-          dueDate: new Date(data.dueDate),
+          dueDate,
           billingPeriodStart: data.billingPeriodStart ? new Date(data.billingPeriodStart) : null,
           billingPeriodEnd: data.billingPeriodEnd ? new Date(data.billingPeriodEnd) : null,
-          issuedAt: new Date(),
+          issuedAt,
           items: {
             create: calculation.items.map((it) => ({
               productId: it.productId,
@@ -124,7 +170,93 @@ export class InvoiceService {
       afterData: invoice,
     });
 
-    return invoice;
+    // If created directly in ISSUED status, dispatch email notification
+    if (initialStatus === InvoiceStatus.ISSUED) {
+      try {
+        await EmailNotificationService.sendInvoiceNotification(invoice.id, undefined, actorUserId);
+      } catch (err) {
+        console.warn(`[InvoiceService] Failed to send email on creation:`, err);
+      }
+    }
+
+    return this.enrichInvoice(invoice);
+  }
+
+  /**
+   * Confirms a DRAFT invoice: transitions DRAFT -> ISSUED (OPEN), freezes snapshots,
+   * sets issuedAt and recalculates dueDate from payment terms.
+   */
+  static async confirmInvoice(
+    id: string,
+    paymentTerms: PaymentTerms = "NET_15",
+    actorUserId?: string | null
+  ) {
+    const invoice = await this.getInvoiceById(id);
+
+    if (invoice.status !== InvoiceStatus.DRAFT) {
+      throw new BusinessRuleError(
+        `Invoice cannot be confirmed. Current status is ${invoice.status}. Only DRAFT invoices can be confirmed.`
+      );
+    }
+
+    const issuedAt = new Date();
+    const dueDate = calculateDueDateFromPaymentTerms(issuedAt, paymentTerms);
+
+    const updated = await prisma.invoice.update({
+      where: { id },
+      data: {
+        status: InvoiceStatus.ISSUED,
+        issuedAt,
+        dueDate,
+      },
+      include: {
+        customer: true,
+        subscription: true,
+        items: true,
+      },
+    });
+
+    await createAuditLog({
+      actorUserId,
+      action: "CONFIRM_INVOICE",
+      entityType: "INVOICE",
+      entityId: id,
+      beforeData: invoice,
+      afterData: updated,
+    });
+
+    // Dispatch email notification
+    try {
+      await EmailNotificationService.sendInvoiceNotification(id, undefined, actorUserId);
+    } catch (err) {
+      console.warn(`[InvoiceService] Notification dispatch failed:`, err);
+    }
+
+    return this.enrichInvoice(updated);
+  }
+
+  /**
+   * Dispatches or resends an invoice notification email.
+   */
+  static async sendInvoice(
+    id: string,
+    recipientEmail?: string,
+    actorUserId?: string | null
+  ) {
+    const invoice = await this.getInvoiceById(id);
+
+    if (invoice.status === InvoiceStatus.DRAFT) {
+      throw new BusinessRuleError("Cannot send a DRAFT invoice. Confirm it first to generate official issue.");
+    }
+
+    const dispatchResult = await EmailNotificationService.sendInvoiceNotification(
+      id,
+      recipientEmail,
+      actorUserId,
+      true // force send
+    );
+
+    return dispatchResult;
   }
 
   /**
@@ -158,12 +290,6 @@ export class InvoiceService {
       where.status = query.status;
     }
 
-    if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
-    }
-
     if (query.search) {
       where.OR = [
         { invoiceNumber: { contains: query.search, mode: "insensitive" } },
@@ -172,7 +298,13 @@ export class InvoiceService {
       ];
     }
 
-    const [invoices, total] = await Promise.all([
+    if (query.startDate || query.endDate) {
+      where.createdAt = {};
+      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
+      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
+    }
+
+    const [rawInvoices, total] = await Promise.all([
       prisma.invoice.findMany({
         where,
         skip,
@@ -188,6 +320,7 @@ export class InvoiceService {
       prisma.invoice.count({ where }),
     ]);
 
+    const invoices = rawInvoices.map((inv) => this.enrichInvoice(inv));
     const pagination: PaginationParams = { page, pageSize, total };
     return { invoices, pagination };
   }
@@ -227,7 +360,7 @@ export class InvoiceService {
       throw new NotFoundError("Invoice not found");
     }
 
-    return invoice;
+    return this.enrichInvoice(invoice);
   }
 
   /**
@@ -272,7 +405,7 @@ export class InvoiceService {
       afterData: updated,
     });
 
-    return updated;
+    return this.enrichInvoice(updated);
   }
 
   /**
@@ -312,7 +445,7 @@ export class InvoiceService {
         newStatus = InvoiceStatus.PARTIALLY_PAID;
       }
 
-      return tx.invoice.update({
+      const updated = await tx.invoice.update({
         where: { id: invoiceId },
         data: {
           amountPaidMinor: newAmountPaidMinor,
@@ -326,6 +459,8 @@ export class InvoiceService {
           paymentAllocations: true,
         },
       });
+
+      return InvoiceService.enrichInvoice(updated);
     });
   }
 }

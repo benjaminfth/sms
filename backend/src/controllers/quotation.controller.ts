@@ -31,11 +31,7 @@ export class QuotationController {
         query.customerId = req.user.customerId;
       }
 
-      const { quotations, pagination } = await QuotationService.getQuotations(
-        query,
-        req.user?.role,
-        req.user?.userId
-      );
+      const { quotations, pagination } = await QuotationService.getQuotations(query);
       AppResponse.paginated(res, quotations, pagination);
     } catch (err) {
       next(err);

@@ -187,11 +187,34 @@ export interface ProductPricingResult {
   currency: string;
 }
 
+// Payment Terms
+export type PaymentTerms = "DUE_IMMEDIATELY" | "NET_7" | "NET_15" | "NET_30";
+
+// Preconfigured Line in Quotation Template
+export interface TemplateLineConfig {
+  productId?: string;
+  productVariantId?: string | null;
+  planId?: string | null;
+  description?: string | null;
+  quantity: string;
+  unitPriceMinor?: string | null;
+}
+
+// Quotation Template Configuration Metadata
+export interface QuotationTemplateConfig {
+  validityDays?: number;
+  paymentTerms?: PaymentTerms;
+  termsAndConditions?: string;
+  planId?: string | null;
+  lines?: TemplateLineConfig[];
+}
+
 // Quotation Template DTO
 export interface QuotationTemplateDTO {
   id: string;
   name: string;
   description?: string | null;
+  config?: QuotationTemplateConfig;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -248,6 +271,24 @@ export interface SubscriptionItemDTO {
   productVariant?: ProductVariantDTO | null;
 }
 
+// Subscription Business Lifecycle Status (Challenge Alignment)
+export type SubscriptionBusinessStatus =
+  | "DRAFT"
+  | "QUOTATION"
+  | "CONFIRMED"
+  | "ACTIVE"
+  | "PAUSED"
+  | "CLOSED";
+
+// Plan Lifecycle Policy
+export interface PlanLifecyclePolicy {
+  allowPause?: boolean;
+  allowEarlyClosure?: boolean;
+  allowRenewal?: boolean;
+  autoCloseAtEnd?: boolean;
+  defaultPaymentTerms?: PaymentTerms;
+}
+
 // Subscription DTO
 export interface SubscriptionDTO {
   id: string;
@@ -256,6 +297,8 @@ export interface SubscriptionDTO {
   planId?: string | null;
   quotationId?: string | null;
   status: SubscriptionStatus;
+  businessStatus?: SubscriptionBusinessStatus;
+  paymentTerms?: PaymentTerms;
   billingInterval: BillingInterval;
   intervalCount: number;
   currency: string;
@@ -274,6 +317,7 @@ export interface SubscriptionWithDetailsDTO extends SubscriptionDTO {
   quotation?: QuotationDTO | null;
   items: SubscriptionItemDTO[];
   invoices?: InvoiceDTO[];
+  lifecyclePolicy?: PlanLifecyclePolicy;
 }
 
 // Invoice Item DTO
@@ -297,6 +341,8 @@ export interface InvoiceDTO {
   subscriptionId?: string | null;
   customerId: string;
   status: InvoiceStatus;
+  businessStatus?: string; // e.g. "OPEN (Confirmed)"
+  paymentTerms?: PaymentTerms;
   currency: string;
   subtotalMinor: string;
   taxAmountMinor: string;

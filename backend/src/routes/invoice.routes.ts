@@ -6,6 +6,8 @@ import { validate } from "../middleware/validate";
 import { Role } from "@sms/shared";
 import {
   createInvoiceSchema,
+  confirmInvoiceSchema,
+  sendInvoiceSchema,
   voidInvoiceSchema,
   paginationQuerySchema,
 } from "@sms/shared";
@@ -35,6 +37,22 @@ router.get(
   InvoiceController.getInvoiceById
 );
 
+// Confirm draft invoice (Admin/Staff only)
+router.post(
+  "/:id/confirm",
+  requireRole(Role.ADMIN, Role.STAFF),
+  validate(confirmInvoiceSchema),
+  InvoiceController.confirmInvoice
+);
+
+// Send / resend invoice notification email (Admin/Staff only)
+router.post(
+  "/:id/send",
+  requireRole(Role.ADMIN, Role.STAFF),
+  validate(sendInvoiceSchema),
+  InvoiceController.sendInvoice
+);
+
 // Void invoice (Admin/Staff only)
 router.post(
   "/:id/void",
@@ -44,4 +62,3 @@ router.post(
 );
 
 export default router;
-

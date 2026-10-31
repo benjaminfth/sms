@@ -8,6 +8,8 @@ import {
   createSubscriptionSchema,
   cancelSubscriptionSchema,
   pauseSubscriptionSchema,
+  renewSubscriptionSchema,
+  closeSubscriptionSchema,
   paginationQuerySchema,
 } from "@sms/shared";
 
@@ -36,6 +38,20 @@ router.get(
   SubscriptionController.getSubscriptionById
 );
 
+// Send subscription quotation (Admin/Staff only)
+router.post(
+  "/:id/send-quotation",
+  requireRole(Role.ADMIN, Role.STAFF),
+  SubscriptionController.sendSubscriptionQuotation
+);
+
+// Confirm subscription (Admin/Staff only)
+router.post(
+  "/:id/confirm",
+  requireRole(Role.ADMIN, Role.STAFF),
+  SubscriptionController.confirmSubscription
+);
+
 // Activate subscription (Admin/Staff only)
 router.post(
   "/:id/activate",
@@ -58,6 +74,14 @@ router.post(
   SubscriptionController.resumeSubscription
 );
 
+// Close subscription (Admin/Staff only)
+router.post(
+  "/:id/close",
+  requireRole(Role.ADMIN, Role.STAFF),
+  validate(closeSubscriptionSchema),
+  SubscriptionController.closeSubscription
+);
+
 // Cancel subscription (Admin/Staff only)
 router.post(
   "/:id/cancel",
@@ -66,5 +90,12 @@ router.post(
   SubscriptionController.cancelSubscription
 );
 
-export default router;
+// Renew subscription (Admin/Staff only)
+router.post(
+  "/:id/renew",
+  requireRole(Role.ADMIN, Role.STAFF),
+  validate(renewSubscriptionSchema),
+  SubscriptionController.renewSubscription
+);
 
+export default router;
