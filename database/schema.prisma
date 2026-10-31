@@ -219,6 +219,8 @@ model ProductVariant {
   product              Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   sku                  String              @unique
   name                 String
+  brand                String?
+  attribute            String?             // e.g. "Color: Blue", "Storage: 256GB", "Module: Enterprise"
   priceAdjustmentType  PriceAdjustmentType @default(SURCHARGE)
   priceAdjustmentMinor BigInt              @default(0) @db.BigInt
   isActive             Boolean             @default(true)
@@ -268,19 +270,24 @@ model ProductTax {
 // ==========================================
 
 model Plan {
-  id            String         @id @default(uuid())
-  code          String         @unique
-  name          String
-  description   String?
-  startDate     DateTime?      @db.Timestamptz
-  endDate       DateTime?      @db.Timestamptz
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now()) @db.Timestamptz
-  updatedAt     DateTime       @updatedAt @db.Timestamptz
+  id                 String         @id @default(uuid())
+  code               String         @unique
+  name               String
+  description        String?
+  minQuantity        Int            @default(1)
+  startDate          DateTime?      @db.Timestamptz
+  endDate            DateTime?      @db.Timestamptz
+  isActive           Boolean        @default(true)
+  autoCloseOnEndDate Boolean        @default(true)
+  allowEarlyClosure  Boolean        @default(false)
+  allowPause         Boolean        @default(true)
+  allowRenewal       Boolean        @default(true)
+  createdAt          DateTime       @default(now()) @db.Timestamptz
+  updatedAt          DateTime       @updatedAt @db.Timestamptz
 
-  prices        PlanPrice[]
-  items         PlanItem[]
-  subscriptions Subscription[]
+  prices             PlanPrice[]
+  items              PlanItem[]
+  subscriptions      Subscription[]
 
   @@index([code])
   @@index([isActive])

@@ -78,6 +78,8 @@ export class ProductService {
               create: data.variants.map((v: any) => ({
                 sku: v.sku.trim(),
                 name: v.name.trim(),
+                brand: v.brand ? v.brand.trim() : null,
+                attribute: v.attribute ? v.attribute.trim() : null,
                 priceAdjustmentType: v.priceAdjustmentType || "SURCHARGE",
                 priceAdjustmentMinor: BigInt(v.priceAdjustmentMinor || "0"),
                 isActive: v.isActive !== undefined ? v.isActive : true,
@@ -297,6 +299,8 @@ export class ProductService {
         productId: product.id,
         sku: data.sku.trim(),
         name: data.name.trim(),
+        brand: data.brand ? data.brand.trim() : null,
+        attribute: data.attribute ? data.attribute.trim() : null,
         priceAdjustmentType: data.priceAdjustmentType || "SURCHARGE",
         priceAdjustmentMinor: BigInt(data.priceAdjustmentMinor || "0"),
         isActive: data.isActive !== undefined ? data.isActive : true,

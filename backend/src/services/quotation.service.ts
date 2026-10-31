@@ -238,13 +238,17 @@ export class QuotationService {
   /**
    * Retrieves paginated quotations.
    */
-  static async getQuotations(query: {
-    page?: number;
-    pageSize?: number;
-    search?: string;
-    status?: QuotationStatus;
-    customerId?: string;
-  }) {
+  static async getQuotations(
+    query: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: QuotationStatus;
+      customerId?: string;
+    },
+    _currentUserRole?: Role,
+    _currentCustomerUserId?: string
+  ) {
     const page = Number(query.page) || 1;
     const pageSize = Number(query.pageSize) || 20;
     const skip = (page - 1) * pageSize;
@@ -343,6 +347,7 @@ export class QuotationService {
 
     const updated = await prisma.$transaction(async (tx) => {
       // If items are being replaced, recalculate totals
+      let calculation: any = null;
       if (data.items && data.items.length > 0) {
         const preparedItems = [];
         for (const item of data.items) {
@@ -372,7 +377,7 @@ export class QuotationService {
           });
         }
 
-        const calculation = await PricingCalculationService.calculateTotals({
+        calculation = await PricingCalculationService.calculateTotals({
           customerId: existing.customerId,
           currency: existing.currency,
           items: preparedItems,
@@ -388,7 +393,7 @@ export class QuotationService {
 
         // Insert new items
         await tx.quotationItem.createMany({
-          data: calculation.items.map((it) => ({
+          data: calculation.items.map((it: any) => ({
             quotationId: id,
             productId: it.productId!,
             productVariantId: it.productVariantId || null,

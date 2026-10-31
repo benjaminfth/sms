@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { MoneyDisplay } from "@/components/shared/MoneyDisplay";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { api } from "@/lib/api-client";
-import { InvoiceStatus, PaymentTerms } from "@sms/shared";
+import { InvoiceWithDetailsDTO, InvoiceStatus } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -21,14 +21,13 @@ import {
   Repeat,
   Send,
   CheckCircle,
-  MailCheck,
 } from "lucide-react";
 
 export default function InvoiceDetailsPage() {
   const params = useParams();
   const id = params.id as string;
 
-  const [invoice, setInvoice] = useState<any | null>(null);
+  const [invoice, setInvoice] = useState<InvoiceWithDetailsDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -40,7 +39,7 @@ export default function InvoiceDetailsPage() {
   const fetchInvoice = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<any>(`/invoices/${id}`);
+      const res = await api.get<InvoiceWithDetailsDTO>(`/invoices/${id}`);
       if (res.success && res.data) {
         setInvoice(res.data);
       }
@@ -183,6 +182,9 @@ export default function InvoiceDetailsPage() {
           <p className="font-semibold text-slate-900 text-sm">{invoice.customer?.fullName}</p>
           <p className="text-xs text-slate-500">{invoice.customer?.companyName || "Individual"}</p>
           <p className="text-xs text-slate-400 font-mono">{invoice.customer?.email}</p>
+          {invoice.customer?.gstOrTaxId && (
+            <p className="text-xs text-slate-400 font-mono">GST: {invoice.customer.gstOrTaxId}</p>
+          )}
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
@@ -245,53 +247,147 @@ export default function InvoiceDetailsPage() {
         </div>
       </div>
 
-      {/* Line Items Table */}
+      {/* Invoice Line Items (Frozen Snapshot) */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">Frozen Invoice Line Items</h2>
-          <span className="text-xs text-slate-500 font-mono">{invoice.items?.length || 0} line items</span>
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-800">
+            Line Items (Historical Commercial Snapshot)
+          </h3>
+          <span className="text-xs text-slate-500 font-mono">
+            {invoice.items?.length || 0} item(s)
+          </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3">Description</th>
-                <th className="px-6 py-3 text-right">Quantity</th>
-                <th className="px-6 py-3 text-right">Unit Price</th>
-                <th className="px-6 py-3 text-right">Tax Amount</th>
-                <th className="px-6 py-3 text-right">Line Total</th>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
+                <th className="py-3 px-4">Description</th>
+                <th className="py-3 px-4 text-right">Quantity</th>
+                <th className="py-3 px-4 text-right">Unit Price</th>
+                <th className="py-3 px-4 text-right">Tax Amount</th>
+                <th className="py-3 px-4 text-right">Line Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {invoice.items?.map((item: any) => (
-                <tr key={item.id} className="hover:bg-slate-50/50">
-                  <td className="px-6 py-4 font-medium text-slate-900">
-                    {item.description}
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {invoice.items?.map((it: any) => (
+                <tr key={it.id} className="hover:bg-slate-50/60">
+                  <td className="py-3.5 px-4">
+                    <p className="font-semibold text-slate-900">{it.description}</p>
                   </td>
-                  <td className="px-6 py-4 text-right font-mono text-xs">
-                    {parseFloat(item.quantity).toFixed(3)}
+                  <td className="py-3.5 px-4 text-right font-mono text-slate-700">
+                    {parseFloat(it.quantity).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 text-right font-mono text-xs">
-                    <MoneyDisplay amountMinor={item.unitPriceMinor} currency={invoice.currency} />
+                  <td className="py-3.5 px-4 text-right font-mono text-slate-700">
+                    <MoneyDisplay amountMinor={it.unitPriceMinor} currency={invoice.currency} />
                   </td>
-                  <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">
-                    <MoneyDisplay amountMinor={item.taxAmountMinor} currency={invoice.currency} />
+                  <td className="py-3.5 px-4 text-right font-mono text-slate-700">
+                    <MoneyDisplay amountMinor={it.taxAmountMinor} currency={invoice.currency} />
                   </td>
-                  <td className="px-6 py-4 text-right font-mono text-xs font-semibold text-slate-900">
-                    <MoneyDisplay amountMinor={item.totalAmountMinor} currency={invoice.currency} />
+                  <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-900">
+                    <MoneyDisplay amountMinor={it.totalAmountMinor} currency={invoice.currency} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {/* Totals Summary Breakdown */}
+        <div className="p-6 bg-slate-50/50 border-t border-slate-200 flex justify-end">
+          <div className="w-72 space-y-2 text-sm">
+            <div className="flex justify-between text-slate-600">
+              <span>Subtotal:</span>
+              <span className="font-mono font-medium">
+                <MoneyDisplay amountMinor={invoice.subtotalMinor} currency={invoice.currency} />
+              </span>
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>Taxes:</span>
+              <span className="font-mono font-medium">
+                <MoneyDisplay amountMinor={invoice.taxAmountMinor} currency={invoice.currency} />
+              </span>
+            </div>
+            {BigInt(invoice.discountAmountMinor) > BigInt(0) && (
+              <div className="flex justify-between text-emerald-700">
+                <span>Discounts Applied:</span>
+                <span className="font-mono font-medium">
+                  -<MoneyDisplay amountMinor={invoice.discountAmountMinor} currency={invoice.currency} />
+                </span>
+              </div>
+            )}
+            <div className="border-t border-slate-200 pt-2 flex justify-between text-base font-extrabold text-slate-900">
+              <span>Grand Total:</span>
+              <span className="font-mono">
+                <MoneyDisplay amountMinor={invoice.totalAmountMinor} currency={invoice.currency} />
+              </span>
+            </div>
+            <div className="flex justify-between text-emerald-700 pt-1">
+              <span>Amount Paid:</span>
+              <span className="font-mono font-medium">
+                <MoneyDisplay amountMinor={invoice.amountPaidMinor} currency={invoice.currency} />
+              </span>
+            </div>
+            <div className="flex justify-between text-slate-900 font-bold border-t border-slate-200 pt-1">
+              <span>Balance Due:</span>
+              <span className="font-mono">
+                <MoneyDisplay amountMinor={invoice.balanceDueMinor} currency={invoice.currency} />
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Allocations Section (Developer 3 Integration) */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <CreditCard className="w-4 h-4 text-slate-600" />
+            <h3 className="text-sm font-semibold text-slate-800">
+              Payment Allocations (Developer 3 Payments Module)
+            </h3>
+          </div>
+          <span className="text-xs text-slate-500">
+            {invoice.paymentAllocations?.length || 0} payment(s) allocated
+          </span>
+        </div>
+
+        {invoice.paymentAllocations && invoice.paymentAllocations.length > 0 ? (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
+                <th className="py-3 px-4">Payment Reference</th>
+                <th className="py-3 px-4">Payment Date</th>
+                <th className="py-3 px-4 text-right">Allocated Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {invoice.paymentAllocations.map((pa: any) => (
+                <tr key={pa.id} className="hover:bg-slate-50/60">
+                  <td className="py-3 px-4 font-mono font-semibold text-slate-900">
+                    {pa.payment?.paymentReference || pa.paymentId}
+                  </td>
+                  <td className="py-3 px-4 font-mono text-xs text-slate-600">
+                    {pa.createdAt ? formatDate(pa.createdAt) : "—"}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-700">
+                    <MoneyDisplay amountMinor={pa.allocatedAmountMinor} currency={invoice.currency} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="p-6 text-center text-slate-400 text-xs">
+            No payments allocated to this invoice yet. Payments processed by Developer 3 will appear here automatically.
+          </div>
+        )}
       </div>
 
       <ConfirmDialog
         isOpen={showVoidDialog}
         title="Void Invoice"
-        description={`Are you sure you want to void invoice ${invoice.invoiceNumber}? This action is permanent and cannot be undone.`}
+        description={`Are you sure you want to VOID invoice ${invoice.invoiceNumber}? Once voided, it cannot be paid or reversed.`}
         onConfirm={handleVoid}
         onCancel={() => setShowVoidDialog(false)}
       />

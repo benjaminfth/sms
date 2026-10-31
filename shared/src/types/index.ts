@@ -99,6 +99,8 @@ export interface ProductVariantDTO {
   productId: string;
   sku: string;
   name: string;
+  brand?: string | null;
+  attribute?: string | null;
   priceAdjustmentType: PriceAdjustmentType;
   priceAdjustmentMinor: string;
   isActive: boolean;
@@ -158,9 +160,14 @@ export interface PlanDTO {
   code: string;
   name: string;
   description?: string | null;
+  minQuantity: number;
   startDate?: string | null;
   endDate?: string | null;
   isActive: boolean;
+  autoCloseOnEndDate: boolean;
+  allowEarlyClosure: boolean;
+  allowPause: boolean;
+  allowRenewal: boolean;
   createdAt: string;
   updatedAt: string;
   prices: PlanPriceDTO[];
@@ -373,6 +380,7 @@ export interface PaymentAllocationDTO {
   invoiceId: string;
   allocatedAmountMinor: string;
   createdAt: string;
+  invoice?: InvoiceDTO;
   payment?: PaymentDTO;
 }
 
@@ -386,10 +394,14 @@ export interface PaymentDTO {
   paymentMethod: PaymentMethod;
   status: PaymentStatus;
   notes?: string | null;
+  internalNotes?: string | null;
+  customerNotes?: string | null;
   paidAt: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type DiscountScope = "PRODUCT" | "PLAN" | "SUBSCRIPTION";
 
 // Discount DTO
 export interface DiscountDTO {
@@ -405,6 +417,186 @@ export interface DiscountDTO {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  discountProducts?: DiscountProductDTO[];
+  scope?: DiscountScope;
+  minQuantity?: number | null;
+  minOrderAmountMinor?: string | null;
+  maxDiscountAmountMinor?: string | null;
+  recurringCycleCount?: number | null;
+  maxRedemptionsPerCustomer?: number | null;
+}
+
+// Tax DTO
+export interface TaxDTO {
+  id: string;
+  name: string;
+  code: string;
+  rateBasisPoints: number; // e.g. 1800 for 18.00%
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  productTaxes?: ProductTaxDTO[];
+}
+
+export interface ProductTaxDTO {
+  id: string;
+  productId: string;
+  taxId: string;
+  createdAt: string;
+  product?: ProductDTO;
+  tax?: TaxDTO;
+}
+
+export interface TaxComponentBreakdown {
+  taxId?: string;
+  taxCode: string;
+  name: string;
+  rateBps: number;
+  amountMinor: string;
+}
+
+export interface DiscountProductDTO {
+  id: string;
+  discountId: string;
+  productId: string;
+  createdAt: string;
+  product?: ProductDTO;
+}
+
+export interface DiscountApplicationDTO {
+  id: string;
+  discountId: string;
+  quotationId?: string | null;
+  subscriptionId?: string | null;
+  invoiceId?: string | null;
+  amountDeductedMinor: string;
+  appliedAt: string;
+  discount?: DiscountDTO;
+}
+
+export interface PaymentWithAllocationsDTO extends PaymentDTO {
+  customer?: CustomerDTO;
+  allocations: (PaymentAllocationDTO & {
+    invoice?: InvoiceDTO;
+  })[];
+  unallocatedAmountMinor: string;
+}
+
+export interface ReconciliationRecordDTO {
+  id: string;
+  paymentReference: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  paymentMethod: PaymentMethod;
+  status: PaymentStatus;
+  amountMinor: string;
+  allocatedAmountMinor: string;
+  unallocatedAmountMinor: string;
+  isFullyAllocated: boolean;
+  paidAt: string;
+  allocations: {
+    allocationId: string;
+    invoiceId: string;
+    invoiceNumber: string;
+    allocatedAmountMinor: string;
+  }[];
+}
+
+export interface PricingCalculationResult {
+  currency: string;
+  subtotalMinor: string;
+  discountTotalMinor: string;
+  taxableAmountMinor: string;
+  taxTotalMinor: string;
+  grandTotalMinor: string;
+  items: {
+    productId?: string | null;
+    productVariantId?: string | null;
+    description: string;
+    quantity: string;
+    unitPriceMinor: string;
+    subtotalMinor: string;
+    discountMinor: string;
+    taxAmountMinor: string;
+    totalAmountMinor: string;
+    applicableTaxes: TaxComponentBreakdown[];
+  }[];
+  discountBreakdown: {
+    discountId: string;
+    code: string;
+    name: string;
+    discountType: DiscountType;
+    amountMinor: string;
+  }[];
+  taxBreakdown: TaxComponentBreakdown[];
+}
+
+export interface DashboardOverviewDTO {
+  totalCustomers: number;
+  activeSubscriptions: number;
+  newSubscriptionsCount: number;
+  cancelledSubscriptionsCount: number;
+  totalInvoicesCount: number;
+  paidInvoicesCount: number;
+  outstandingInvoicesCount: number;
+  overdueInvoicesCount: number;
+  totalCollectedRevenueMinor: string;
+  totalInvoicedRevenueMinor: string;
+  totalOutstandingRevenueMinor: string;
+  currency: string;
+}
+
+export interface RevenueAnalyticsPoint {
+  date: string;
+  invoicedMinor: string;
+  collectedMinor: string;
+}
+
+export interface RevenueAnalyticsDTO {
+  currency: string;
+  points: RevenueAnalyticsPoint[];
+  totalInvoicedMinor: string;
+  totalCollectedMinor: string;
+}
+
+export interface SubscriptionAnalyticsDTO {
+  activeCount: number;
+  trialingCount: number;
+  pastDueCount: number;
+  pausedCount: number;
+  cancelledCount: number;
+  expiredCount: number;
+  byPlan: {
+    planId: string;
+    planName: string;
+    count: number;
+  }[];
+}
+
+export interface InvoiceAnalyticsDTO {
+  statusDistribution: {
+    status: InvoiceStatus;
+    count: number;
+    totalAmountMinor: string;
+  }[];
+}
+
+export interface PaymentMethodAnalyticsDTO {
+  methods: {
+    method: PaymentMethod;
+    count: number;
+    totalAmountMinor: string;
+  }[];
+}
+
+export interface CustomerPortalOverviewDTO {
+  customer: CustomerDTO;
+  activeSubscriptions: (SubscriptionDTO & { plan?: { name?: string } | null })[];
+  upcomingBillingDate: string | null;
+  recentInvoices: InvoiceDTO[];
+  totalOutstandingBalanceMinor: string;
+  recentPayments: PaymentDTO[];
 }
 
 // Billing Run & Attempt DTOs

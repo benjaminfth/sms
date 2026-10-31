@@ -21,7 +21,7 @@ export default function NewProductPage() {
   });
 
   const [variants, setVariants] = useState<
-    Array<{ sku: string; name: string; priceAdjustmentMinor: string }>
+    Array<{ sku: string; name: string; brand?: string; attribute?: string; priceAdjustmentMinor: string }>
   >([]);
 
   const [loading, setLoading] = useState(false);
@@ -33,6 +33,8 @@ export default function NewProductPage() {
       {
         sku: `${formData.sku ? formData.sku + "-" : ""}VAR-${variants.length + 1}`,
         name: "",
+        brand: "",
+        attribute: "",
         priceAdjustmentMinor: "50000",
       },
     ]);
@@ -187,7 +189,7 @@ export default function NewProductPage() {
                   <div key={idx} className="flex items-center space-x-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                     <input
                       type="text"
-                      placeholder="Variant Name"
+                      placeholder="Variant Name *"
                       value={v.name}
                       onChange={(e) => {
                         const newVars = [...variants];
@@ -198,18 +200,29 @@ export default function NewProductPage() {
                     />
                     <input
                       type="text"
-                      placeholder="Variant SKU"
+                      placeholder="Brand (optional)"
+                      value={v.brand || ""}
+                      onChange={(e) => {
+                        const newVars = [...variants];
+                        newVars[idx]!.brand = e.target.value;
+                        setVariants(newVars);
+                      }}
+                      className="w-28 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
+                    />
+                    <input
+                      type="text"
+                      placeholder="SKU *"
                       value={v.sku}
                       onChange={(e) => {
                         const newVars = [...variants];
                         newVars[idx]!.sku = e.target.value;
                         setVariants(newVars);
                       }}
-                      className="w-32 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
+                      className="w-28 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded"
                     />
                     <input
                       type="text"
-                      placeholder="Surcharge Paise"
+                      placeholder="+ Surcharge Paise"
                       value={v.priceAdjustmentMinor}
                       onChange={(e) => {
                         const newVars = [...variants];

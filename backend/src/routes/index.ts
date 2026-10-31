@@ -9,6 +9,14 @@ import quotationTemplateRoutes from "./quotation-template.routes";
 import subscriptionRoutes from "./subscription.routes";
 import billingRoutes from "./billing.routes";
 import invoiceRoutes from "./invoice.routes";
+import taxRoutes from "./tax.routes";
+import discountRoutes from "./discount.routes";
+import pricingRoutes from "./pricing.routes";
+import paymentRoutes from "./payment.routes";
+import allocationRoutes from "./allocation.routes";
+import reconciliationRoutes from "./reconciliation.routes";
+import dashboardRoutes from "./dashboard.routes";
+import portalRoutes from "./portal.routes";
 import { AppResponse } from "../utils/response";
 
 const router = Router();
@@ -31,5 +39,15 @@ router.use("/quotation-templates", quotationTemplateRoutes);
 router.use("/subscriptions", subscriptionRoutes);
 router.use("/billing", billingRoutes);
 router.use("/invoices", invoiceRoutes);
+
+// Developer 3 Financial & Portal Modules
+router.use("/taxes", taxRoutes);
+router.use("/discounts", discountRoutes);
+router.use("/pricing", pricingRoutes);
+router.use("/payments", paymentRoutes);
+router.use("/payment-allocations", allocationRoutes);
+router.use("/reconciliation", reconciliationRoutes);
+router.use("/dashboard", dashboardRoutes);
+router.use("/portal", portalRoutes);
 
 export default router;

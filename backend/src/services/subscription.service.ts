@@ -209,7 +209,7 @@ export class SubscriptionService {
           items: {
             create: itemsToCreate.map((it) => ({
               productId: it.productId,
-              productVariantId: it.productVariantId,
+              productVariantId: it.productVariantId || null,
               quantity: it.quantity,
               unitPriceMinor: it.unitPriceMinor,
             })),
@@ -306,7 +306,7 @@ export class SubscriptionService {
           items: {
             create: quotation.items.map((it) => ({
               productId: it.productId,
-              productVariantId: it.productVariantId,
+              productVariantId: it.productVariantId || null,
               quantity: it.quantity ? String(it.quantity) : "1.000",
               unitPriceMinor: it.unitPriceMinor,
             })),
@@ -315,6 +315,7 @@ export class SubscriptionService {
         include: {
           customer: true,
           plan: true,
+          quotation: true,
           items: {
             include: {
               product: true,
@@ -324,6 +325,8 @@ export class SubscriptionService {
         },
       });
 
+      return subscription;
+    }).then(async (subscription) => {
       await createAuditLog({
         actorUserId,
         action: "CONVERT_QUOTATION_TO_SUBSCRIPTION",

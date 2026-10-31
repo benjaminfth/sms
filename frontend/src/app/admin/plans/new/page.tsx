@@ -15,6 +15,13 @@ export default function NewPlanPage() {
     code: "",
     name: "",
     description: "",
+    minQuantity: 1,
+    startDate: "",
+    endDate: "",
+    autoCloseOnEndDate: true,
+    allowEarlyClosure: false,
+    allowPause: true,
+    allowRenewal: true,
   });
 
   const [prices, setPrices] = useState([
@@ -168,6 +175,96 @@ export default function NewPlanPage() {
               placeholder="Full software suite billed on recurring schedule..."
               className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
             />
+          </div>
+
+          {/* Minimum Quantity & Availability Dates */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase">
+                Minimum Purchase Quantity *
+              </label>
+              <input
+                type="number"
+                min={1}
+                required
+                value={formData.minQuantity}
+                onChange={(e) =>
+                  setFormData({ ...formData, minQuantity: Math.max(1, parseInt(e.target.value) || 1) })
+                }
+                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+              />
+              <p className="mt-1 text-[11px] text-slate-400">Subscribers cannot order below this amount.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase">
+                Availability Start Date
+              </label>
+              <input
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase">
+                Availability End Date
+              </label>
+              <input
+                type="date"
+                value={formData.endDate}
+                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                className="mt-1 w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* Lifecycle & Policy Configurations */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
+              Plan Lifecycle Policies
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-700">
+              <label className="flex items-center space-x-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.autoCloseOnEndDate}
+                  onChange={(e) => setFormData({ ...formData, autoCloseOnEndDate: e.target.checked })}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>Auto-close plan when end date is reached</span>
+              </label>
+
+              <label className="flex items-center space-x-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.allowEarlyClosure}
+                  onChange={(e) => setFormData({ ...formData, allowEarlyClosure: e.target.checked })}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>Allow subscribers early cancellation</span>
+              </label>
+
+              <label className="flex items-center space-x-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.allowPause}
+                  onChange={(e) => setFormData({ ...formData, allowPause: e.target.checked })}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>Allow subscribers to pause billing cycle</span>
+              </label>
+
+              <label className="flex items-center space-x-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.allowRenewal}
+                  onChange={(e) => setFormData({ ...formData, allowRenewal: e.target.checked })}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>Allow automatic subscription renewal</span>
+              </label>
+            </div>
           </div>
 
           {/* Pricing Tiers */}

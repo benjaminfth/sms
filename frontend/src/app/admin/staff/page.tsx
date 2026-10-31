@@ -9,6 +9,7 @@ import { api } from "@/lib/api-client";
 import { UserDTO, Role, PaginationMeta } from "@sms/shared";
 import { formatDate } from "@/lib/utils";
 import { Plus, Shield, Search, UserCheck, X } from "lucide-react";
+import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
 
 export default function AdminStaffPage() {
   const [users, setUsers] = useState<UserDTO[]>([]);
@@ -192,7 +193,12 @@ export default function AdminStaffPage() {
 
       {/* Create Staff Modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsCreateOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+        >
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Create Operations Account</h3>
@@ -242,6 +248,10 @@ export default function AdminStaffPage() {
                   placeholder="Min 9 chars (e.g. Brightloop!2026)"
                   className="mt-1 w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg"
                 />
+                <PasswordRequirementsChecklist
+                  password={createForm.password}
+                  hasSubmitted={Boolean(createError)}
+                />
               </div>
 
               <div>
@@ -279,7 +289,12 @@ export default function AdminStaffPage() {
 
       {/* Role Assignment Modal */}
       {editRoleUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditRoleUser(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+        >
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Change User Role</h3>

@@ -49,9 +49,14 @@ export class BillingService {
    * bounded batch processing, and failure isolation.
    */
   static async executeBillingRun(
-    options: BillingRunOptions = {},
+    optionsOrTargetDate: BillingRunOptions | Date = {},
     actorUserId?: string | null
   ): Promise<BillingRunResult> {
+    const options: BillingRunOptions =
+      optionsOrTargetDate instanceof Date
+        ? { targetDate: optionsOrTargetDate }
+        : optionsOrTargetDate;
+
     const targetDate = options.targetDate || new Date();
     const batchSize = Math.max(1, Math.min(options.batchSize || 50, 500));
     const maxRetries = options.maxRetries || 3;
@@ -507,6 +512,7 @@ export class BillingService {
     pageSize?: number;
     subscriptionId?: string;
     status?: BillingAttemptStatus;
+    billingRunId?: string;
   }) {
     const page = Number(query.page) || 1;
     const pageSize = Number(query.pageSize) || 20;
@@ -515,6 +521,7 @@ export class BillingService {
     const where: any = {};
     if (query.subscriptionId) where.subscriptionId = query.subscriptionId;
     if (query.status) where.status = query.status;
+    if (query.billingRunId) where.billingRunId = query.billingRunId;
 
     const [attempts, total] = await Promise.all([
       prisma.billingAttempt.findMany({
