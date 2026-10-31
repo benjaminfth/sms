@@ -28,3 +28,35 @@ export const createAuditLog = auditLogService;
 
 // Contract E: Shared Prisma Client Singleton
 export const prisma = sharedPrisma;
+
+// ============================================================================
+// DEVELOPER 3 INTEGRATION CONTRACTS (Financial Engine & Payment Processing)
+// ============================================================================
+
+import { TaxCalculationService } from "./tax-calculation.service";
+import { DiscountCalculationService } from "./discount-calculation.service";
+import { PricingService } from "./pricing.service";
+import { InvoiceSettlementService } from "./invoice-settlement.service";
+import { PaymentService } from "./payment.service";
+import { AllocationService } from "./allocation.service";
+
+// Contract F: Tax Calculation Engine (Exclusive/Inclusive & Product Taxes)
+export const calculateExclusiveTax = TaxCalculationService.calculateExclusiveTax;
+export const calculateInclusiveTax = TaxCalculationService.calculateInclusiveTax;
+export const calculateItemTaxes = TaxCalculationService.calculateItemTaxes;
+export const getActiveTaxesForProduct = TaxCalculationService.getActiveTaxesForProduct;
+
+// Contract G: Discount Validation & Calculation
+export const validateAndCalculateDiscount = DiscountCalculationService.validateAndCalculateDiscount;
+export const recordDiscountRedemption = DiscountCalculationService.recordDiscountRedemption;
+
+// Contract H: Unified Pricing Engine (For Quotations, Subscriptions & Invoices)
+export const calculatePricing = PricingService.calculatePricing;
+
+// Contract I: Invoice Settlement & Balance Updates (Transactional)
+export const updateInvoiceSettlement = InvoiceSettlementService.updateInvoiceSettlement;
+
+// Contract J: Payment Processing & Allocations
+export const recordPayment = PaymentService.recordPayment;
+export const allocatePayment = AllocationService.allocatePayment;
+
