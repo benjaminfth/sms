@@ -61,4 +61,21 @@ router.patch(
   ProductController.updateVariant
 );
 
+// Product Tax assignments
+import { TaxController } from "../controllers/tax.controller";
+import { assignProductTaxesSchema } from "@sms/shared";
+
+router.get("/:productId/taxes", TaxController.getProductTaxes);
+router.post(
+  "/:productId/taxes",
+  requireRole(Role.ADMIN, Role.STAFF),
+  validate(assignProductTaxesSchema),
+  TaxController.assignProductTaxes
+);
+router.delete(
+  "/:productId/taxes/:taxId",
+  requireRole(Role.ADMIN, Role.STAFF),
+  TaxController.removeProductTax
+);
+
 export default router;
