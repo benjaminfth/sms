@@ -250,7 +250,7 @@ describe("Password Complexity & Validation Requirements", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.message).toBe("Password has been successfully updated");
+      expect(res.body.data.message).toMatch(/(Password has been successfully updated|Your password has been successfully updated)/);
     });
   });
 

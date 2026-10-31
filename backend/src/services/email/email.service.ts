@@ -1,15 +1,18 @@
 import { IEmailAdapter, SendEmailOptions, PasswordResetEmailData } from "./email.interface";
 import { LoggerEmailAdapter } from "./logger.adapter";
 import { SmtpEmailAdapter } from "./smtp.adapter";
+import { ResendEmailProvider } from "./resend.provider";
 
 export class EmailService {
   private static instance: EmailService;
   private adapter: IEmailAdapter;
 
   private constructor() {
-    const provider = (process.env.EMAIL_PROVIDER || "logger").toLowerCase().trim();
+    const provider = (process.env.EMAIL_PROVIDER || "resend").toLowerCase().trim();
 
-    if (provider === "smtp") {
+    if (provider === "resend" || process.env.RESEND_API_KEY) {
+      this.adapter = new ResendEmailProvider();
+    } else if (provider === "smtp") {
       this.adapter = new SmtpEmailAdapter();
     } else {
       this.adapter = new LoggerEmailAdapter();
@@ -21,6 +24,14 @@ export class EmailService {
       EmailService.instance = new EmailService();
     }
     return EmailService.instance;
+  }
+
+  public setAdapter(adapter: IEmailAdapter): void {
+    this.adapter = adapter;
+  }
+
+  public getAdapter(): IEmailAdapter {
+    return this.adapter;
   }
 
   public getAdapterName(): string {
@@ -39,22 +50,22 @@ export class EmailService {
    * Test / development utility to inspect captured emails
    */
   public getCapturedEmails() {
-    if (this.adapter instanceof LoggerEmailAdapter) {
-      return this.adapter.getSentEmails();
+    if ("getSentEmails" in this.adapter && typeof (this.adapter as any).getSentEmails === "function") {
+      return (this.adapter as any).getSentEmails();
     }
     return [];
   }
 
   public getLastCapturedEmail() {
-    if (this.adapter instanceof LoggerEmailAdapter) {
-      return this.adapter.getLastSentEmail();
+    if ("getLastSentEmail" in this.adapter && typeof (this.adapter as any).getLastSentEmail === "function") {
+      return (this.adapter as any).getLastSentEmail();
     }
     return null;
   }
 
   public clearCapturedEmails() {
-    if (this.adapter instanceof LoggerEmailAdapter) {
-      this.adapter.clearSentEmails();
+    if ("clearSentEmails" in this.adapter && typeof (this.adapter as any).clearSentEmails === "function") {
+      (this.adapter as any).clearSentEmails();
     }
   }
 }

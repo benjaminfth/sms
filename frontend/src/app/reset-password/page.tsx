@@ -4,7 +4,7 @@ import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { KeyRound, ArrowRight, CheckCircle2 } from "lucide-react";
+import { KeyRound, ArrowRight, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { PasswordRequirementsChecklist } from "@/components/shared/PasswordRequirementsChecklist";
 import { checkPasswordRequirements } from "@sms/shared";
 
@@ -15,6 +15,8 @@ function ResetPasswordForm() {
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,9 @@ function ResetPasswordForm() {
         }, 2500);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to reset password. The link may have expired or is invalid.");
+      setError(
+        err?.message || "Failed to reset password. The link may have expired or is invalid."
+      );
     } finally {
       setLoading(false);
     }
@@ -66,27 +70,27 @@ function ResetPasswordForm() {
   return (
     <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-slate-200/80">
       {success ? (
-        <div className="text-center py-6">
+        <div className="text-center py-4">
           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center mb-4">
-            <CheckCircle2 className="w-8 h-8" />
+            <CheckCircle2 className="w-7 h-7" />
           </div>
-          <h3 className="text-lg font-bold text-slate-900">Password Reset Successful!</h3>
-          <p className="text-sm text-slate-500 mt-1">
-            Your password has been securely updated. Redirecting to sign in...
+          <h3 className="text-lg font-bold text-slate-900">Password Updated Successfully</h3>
+          <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+            Your password has been successfully updated. You can now sign in using your new password.
           </p>
-          <div className="mt-5">
+          <div className="mt-6 pt-4 border-t border-slate-100">
             <Link
               href="/login"
-              className="inline-flex items-center text-sm font-semibold text-brand-600 hover:text-brand-500"
+              className="inline-flex items-center text-sm font-semibold text-brand-600 hover:text-brand-700 transition"
             >
-              Sign in now <ArrowRight className="ml-1.5 w-4 h-4" />
+              Sign In Now <ArrowRight className="ml-1.5 w-4 h-4" />
             </Link>
           </div>
         </div>
       ) : (
         <>
           {error && (
-            <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600 font-medium">
+            <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600 font-medium leading-relaxed">
               {error}
             </div>
           )}
@@ -102,14 +106,25 @@ function ResetPasswordForm() {
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 New Password
               </label>
-              <input
-                type="password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-                className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition"
-              />
+              <div className="relative mt-1.5">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min 9 chars)"
+                  disabled={loading}
+                  className="block w-full pr-10 pl-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-hidden"
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               <PasswordRequirementsChecklist
                 password={newPassword}
                 hasSubmitted={hasSubmitted}
@@ -120,14 +135,25 @@ function ResetPasswordForm() {
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 Confirm New Password
               </label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter your new password"
-                className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition"
-              />
+              <div className="relative mt-1.5">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your new password"
+                  disabled={loading}
+                  className="block w-full pr-10 pl-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-hidden transition disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-hidden"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {confirmPassword && (
                 <p
                   className={`mt-1.5 text-xs font-medium flex items-center ${
@@ -143,14 +169,14 @@ function ResetPasswordForm() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !token}
               className="w-full mt-2 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 disabled:opacity-50 transition"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>Update Password</span>
+                  <span>Change Password</span>
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </>
               )}
@@ -159,8 +185,11 @@ function ResetPasswordForm() {
 
           <div className="mt-6 text-center text-xs text-slate-500">
             Remembered your credentials?{" "}
-            <Link href="/login" className="font-semibold text-brand-600 hover:text-brand-500">
-              Back to Sign in
+            <Link
+              href="/login"
+              className="font-semibold text-brand-600 hover:text-brand-700 transition"
+            >
+              Back to Sign In
             </Link>
           </div>
         </>
@@ -177,10 +206,10 @@ export default function ResetPasswordPage() {
           <KeyRound className="w-6 h-6" />
         </div>
         <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
-          Reset Your Password
+          Create a New Password
         </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Create a secure, complex password for your Brightloop account
+        <p className="mt-1.5 text-sm text-slate-500 max-w-sm mx-auto">
+          Enter your new password below to regain access to your Brightloop account.
         </p>
       </div>
 
