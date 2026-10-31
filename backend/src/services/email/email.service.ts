@@ -7,13 +7,24 @@ export class EmailService {
   private adapter: IEmailAdapter;
 
   private constructor() {
+    this.adapter = this.resolveAdapter();
+  }
+
+  private resolveAdapter(): IEmailAdapter {
     const provider = (process.env.EMAIL_PROVIDER || "logger").toLowerCase().trim();
 
     if (provider === "smtp" && process.env.NODE_ENV !== "test") {
-      this.adapter = new SmtpEmailAdapter();
-    } else {
-      this.adapter = new LoggerEmailAdapter();
+      return new SmtpEmailAdapter();
     }
+    return new LoggerEmailAdapter();
+  }
+
+  private getActiveAdapter(): IEmailAdapter {
+    const provider = (process.env.EMAIL_PROVIDER || "logger").toLowerCase().trim();
+    if (provider === "smtp" && process.env.NODE_ENV !== "test" && this.adapter.name !== "smtp") {
+      this.adapter = new SmtpEmailAdapter();
+    }
+    return this.adapter;
   }
 
   public static getInstance(): EmailService {
@@ -24,37 +35,40 @@ export class EmailService {
   }
 
   public getAdapterName(): string {
-    return this.adapter.name;
+    return this.getActiveAdapter().name;
   }
 
   public async send(options: SendEmailOptions): Promise<boolean> {
-    return this.adapter.send(options);
+    return this.getActiveAdapter().send(options);
   }
 
   public async sendPasswordResetEmail(data: PasswordResetEmailData): Promise<boolean> {
-    return this.adapter.sendPasswordReset(data);
+    return this.getActiveAdapter().sendPasswordReset(data);
   }
 
   /**
    * Test / development utility to inspect captured emails
    */
   public getCapturedEmails() {
-    if (this.adapter instanceof LoggerEmailAdapter) {
-      return this.adapter.getSentEmails();
+    const active = this.getActiveAdapter();
+    if (active instanceof LoggerEmailAdapter) {
+      return active.getSentEmails();
     }
     return [];
   }
 
   public getLastCapturedEmail() {
-    if (this.adapter instanceof LoggerEmailAdapter) {
-      return this.adapter.getLastSentEmail();
+    const active = this.getActiveAdapter();
+    if (active instanceof LoggerEmailAdapter) {
+      return active.getLastSentEmail();
     }
     return null;
   }
 
   public clearCapturedEmails() {
-    if (this.adapter instanceof LoggerEmailAdapter) {
-      this.adapter.clearSentEmails();
+    const active = this.getActiveAdapter();
+    if (active instanceof LoggerEmailAdapter) {
+      active.clearSentEmails();
     }
   }
 }
