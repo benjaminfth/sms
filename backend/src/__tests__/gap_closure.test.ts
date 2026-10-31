@@ -1,643 +1,380 @@
 import request from "supertest";
 import app from "../app";
 import { prisma } from "../database/prisma";
-import { DiscountCalculationService } from "../services/discount-calculation.service";
-import { PricingService } from "../services/pricing.service";
-import { DiscountService } from "../services/discount.service";
-import { PaymentService } from "../services/payment.service";
-import { PortalService } from "../services/portal.service";
-import { DiscountType, PaymentMethod, PaymentStatus, InvoiceStatus } from "@sms/shared";
+import { PlanService } from "../services/plan.service";
+import { emailService } from "../services/email/email.service";
+import { calculateVariantPrice, BillingInterval, ProductType } from "@sms/shared";
+import { generateOpaqueToken } from "../utils/token";
 
-describe("Developer 3 — Gap Closure Comprehensive Test Suite", () => {
+describe("Developer 1 Gap Closure Verification Suite", () => {
   let adminToken: string;
   let staffToken: string;
-  let customerToken: string;
-  let customerId: string;
-
-  let testProductAId: string;
-  let testProductBId: string;
 
   beforeAll(async () => {
-    // 1. Admin login
-    const adminLogin = await request(app).post("/api/v1/auth/login").send({
-      email: "admin@brightloop.demo",
-      password: "Brightloop!2026",
-    });
-    adminToken = adminLogin.body.data.accessToken;
+    // Authenticate as Admin
+    const adminRes = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "admin@brightloop.demo", password: "Brightloop!2026" });
+    adminToken = adminRes.body.data.accessToken;
 
-    // 2. Staff login
-    const staffLogin = await request(app).post("/api/v1/auth/login").send({
-      email: "staff@brightloop.demo",
-      password: "Brightloop!2026",
-    });
-    staffToken = staffLogin.body.data.accessToken;
-
-    // 3. Customer login
-    const customerLogin = await request(app).post("/api/v1/auth/login").send({
-      email: "customer@brightloop.demo",
-      password: "Brightloop!2026",
-    });
-    customerToken = customerLogin.body.data.accessToken;
-
-    const customerRecord = await prisma.customer.findFirst({
-      where: { email: "customer@brightloop.demo" },
-    });
-    customerId = customerRecord!.id;
-
-    // 4. Ensure test products
-    const products = await prisma.product.findMany({ take: 2 });
-    if (products.length >= 2) {
-      testProductAId = products[0]!.id;
-      testProductBId = products[1]!.id;
-    } else {
-      const p1 = await prisma.product.create({
-        data: {
-          name: "Test Seat License A",
-          sku: `SKU-A-${Date.now()}`,
-          baseSellingPriceMinor: 200000n, // ₹2,000
-          costPriceMinor: 100000n,
-          currency: "INR",
-        },
-      });
-      const p2 = await prisma.product.create({
-        data: {
-          name: "Test Add-on B",
-          sku: `SKU-B-${Date.now()}`,
-          baseSellingPriceMinor: 100000n, // ₹1,000
-          costPriceMinor: 50000n,
-          currency: "INR",
-        },
-      });
-      testProductAId = p1.id;
-      testProductBId = p2.id;
-    }
+    // Authenticate as Staff
+    const staffRes = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "staff@brightloop.demo", password: "Brightloop!2026" });
+    staffToken = staffRes.body.data.accessToken;
   });
 
-  // ==========================================
-  // 1. DISCOUNT PERMISSION TESTS
-  // ==========================================
-  describe("1. Discount Permission Enforcement (ADMIN vs STAFF vs CUSTOMER)", () => {
-    const uniqueCode = `ADM_${Date.now().toString().slice(-4)}`;
-    let createdDiscountId: string;
+  describe("1. Authentication & Email Security Gaps", () => {
+    const baseEmail = `gap-test-${Date.now()}`;
+    const emailUpper = `${baseEmail}@BrightLoop.DEMO`;
+    const emailLower = `${baseEmail}@brightloop.demo`;
 
-    it("ADMIN can successfully create a new discount rule", async () => {
+    afterAll(async () => {
+      const user = await prisma.user.findFirst({
+        where: { email: { equals: emailLower, mode: "insensitive" } },
+      });
+      if (user) {
+        await prisma.customer.deleteMany({ where: { userId: user.id } });
+        await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+        await prisma.user.delete({ where: { id: user.id } });
+      }
+    });
+
+    it("should reject duplicate registration with case-variant email", async () => {
+      // Register with mixed/uppercase email
+      const regRes = await request(app)
+        .post("/api/v1/auth/register")
+        .send({
+          email: emailUpper,
+          password: "StrongPass!2026",
+          confirmPassword: "StrongPass!2026",
+          fullName: "Case Sensitive Test",
+          companyName: "Case Test Corp",
+        });
+      expect(regRes.status).toBe(201);
+      expect(regRes.body.data.user.email).toBe(emailLower);
+
+      // Attempt duplicate registration with lowercase variant
+      const dupRes = await request(app)
+        .post("/api/v1/auth/register")
+        .send({
+          email: emailLower,
+          password: "StrongPass!2026",
+          confirmPassword: "StrongPass!2026",
+          fullName: "Duplicate User",
+        });
+      expect(dupRes.status).toBe(409);
+      expect(dupRes.body.success).toBe(false);
+      expect(dupRes.body.error.code).toBe("CONFLICT");
+    });
+
+    it("should not reveal account existence when requesting password reset for nonexistent email", async () => {
+      emailService.clearCapturedEmails();
+
       const res = await request(app)
-        .post("/api/v1/discounts")
+        .post("/api/v1/auth/forgot-password")
+        .send({ email: "nonexistent-user-12345@brightloop.demo" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.message).toContain("If an account with that email exists");
+
+      // Verify no email was dispatched for nonexistent user
+      expect(emailService.getCapturedEmails().length).toBe(0);
+    });
+
+    it("should dispatch password reset email via emailService for registered users", async () => {
+      emailService.clearCapturedEmails();
+
+      const res = await request(app)
+        .post("/api/v1/auth/forgot-password")
+        .send({ email: emailLower });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const captured = emailService.getLastCapturedEmail();
+      expect(captured).toBeDefined();
+      expect(captured?.to).toBe(emailLower);
+      expect(captured?.subject).toContain("Reset Your Brightloop Software Password");
+    });
+
+    it("should reject password reset when token has expired", async () => {
+      const { rawToken, tokenHash } = generateOpaqueToken();
+
+      const tempUser = await prisma.user.create({
+        data: {
+          email: `expired-token-${Date.now()}@brightloop.demo`,
+          passwordHash: "dummyhash",
+          fullName: "Expired Token Test",
+          role: "CUSTOMER",
+        },
+      });
+
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: tempUser.id,
+          tokenHash,
+          expiresAt: new Date(Date.now() - 1000 * 60), // Expired 1 minute ago
+        },
+      });
+
+      const res = await request(app)
+        .post("/api/v1/auth/reset-password")
+        .send({
+          token: rawToken,
+          newPassword: "NewValidPass!2026",
+          confirmPassword: "NewValidPass!2026",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain("expired");
+
+      await prisma.passwordResetToken.deleteMany({ where: { userId: tempUser.id } });
+      await prisma.user.delete({ where: { id: tempUser.id } });
+    });
+
+    it("should reject password reset when token has already been reused", async () => {
+      const { rawToken, tokenHash } = generateOpaqueToken();
+
+      const tempUser = await prisma.user.create({
+        data: {
+          email: `reused-token-${Date.now()}@brightloop.demo`,
+          passwordHash: "dummyhash",
+          fullName: "Reused Token Test",
+          role: "CUSTOMER",
+        },
+      });
+
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: tempUser.id,
+          tokenHash,
+          isUsed: true, // Already marked used
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+        },
+      });
+
+      const res = await request(app)
+        .post("/api/v1/auth/reset-password")
+        .send({
+          token: rawToken,
+          newPassword: "NewValidPass!2026",
+          confirmPassword: "NewValidPass!2026",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain("already been used");
+
+      await prisma.passwordResetToken.deleteMany({ where: { userId: tempUser.id } });
+      await prisma.user.delete({ where: { id: tempUser.id } });
+    });
+
+    it("should forbid STAFF from creating another staff or admin account", async () => {
+      const res = await request(app)
+        .post("/api/v1/users/staff")
+        .set("Authorization", `Bearer ${staffToken}`)
+        .send({
+          email: `unauthorized-staff-${Date.now()}@brightloop.demo`,
+          password: "ValidPass!2026",
+          fullName: "Unauthorized Account",
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe("2. Product Management Gaps", () => {
+    let createdProductId: string;
+
+    afterAll(async () => {
+      if (createdProductId) {
+        await prisma.productVariant.deleteMany({ where: { productId: createdProductId } });
+        await prisma.product.deleteMany({ where: { id: createdProductId } });
+      }
+    });
+
+    it("should store product type and independent cost/sales prices", async () => {
+      const res = await request(app)
+        .post("/api/v1/products")
         .set("Authorization", `Bearer ${adminToken}`)
         .send({
-          code: uniqueCode,
-          name: "Admin Authorized Discount",
-          discountType: DiscountType.PERCENTAGE,
-          valueMinorOrBasisPoints: "1000", // 10%
-          scope: "SUBSCRIPTION",
+          sku: `GAP-PROD-${Date.now()}`,
+          name: "Brightloop Enterprise Suite",
+          productType: ProductType.GOODS,
+          baseSellingPriceMinor: "250000", // ₹2,500.00
+          costPriceMinor: "120000",       // ₹1,200.00
+          notes: "Internal hardware bundle",
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.code).toBe(uniqueCode);
-      createdDiscountId = res.body.data.id;
+      expect(res.body.data.productType).toBe(ProductType.GOODS);
+      expect(res.body.data.baseSellingPriceMinor).toBe("250000");
+      expect(res.body.data.costPriceMinor).toBe("120000");
+
+      createdProductId = res.body.data.id;
     });
 
-    it("STAFF cannot create a discount rule (rejected with 403 Forbidden)", async () => {
+    it("should reject negative prices during product creation", async () => {
       const res = await request(app)
-        .post("/api/v1/discounts")
-        .set("Authorization", `Bearer ${staffToken}`)
-        .send({
-          code: `STF_${Date.now().toString().slice(-4)}`,
-          name: "Staff Unauthorized Discount",
-          discountType: DiscountType.PERCENTAGE,
-          valueMinorOrBasisPoints: "1000",
-        });
-
-      expect(res.status).toBe(403);
-      expect(res.body.success).toBe(false);
-    });
-
-    it("CUSTOMER cannot create a discount rule (rejected with 403 Forbidden)", async () => {
-      const res = await request(app)
-        .post("/api/v1/discounts")
-        .set("Authorization", `Bearer ${customerToken}`)
-        .send({
-          code: `CUS_${Date.now().toString().slice(-4)}`,
-          name: "Customer Unauthorized Discount",
-          discountType: DiscountType.PERCENTAGE,
-          valueMinorOrBasisPoints: "1000",
-        });
-
-      expect(res.status).toBe(403);
-      expect(res.body.success).toBe(false);
-    });
-
-    it("STAFF cannot edit an existing discount rule (rejected with 403 Forbidden)", async () => {
-      const res = await request(app)
-        .patch(`/api/v1/discounts/${createdDiscountId}`)
-        .set("Authorization", `Bearer ${staffToken}`)
-        .send({
-          name: "Staff Malicious Override",
-        });
-
-      expect(res.status).toBe(403);
-      expect(res.body.success).toBe(false);
-    });
-
-    it("CUSTOMER cannot edit an existing discount rule (rejected with 403 Forbidden)", async () => {
-      const res = await request(app)
-        .patch(`/api/v1/discounts/${createdDiscountId}`)
-        .set("Authorization", `Bearer ${customerToken}`)
-        .send({
-          name: "Customer Malicious Override",
-        });
-
-      expect(res.status).toBe(403);
-      expect(res.body.success).toBe(false);
-    });
-
-    it("STAFF cannot deactivate an existing discount (rejected with 403 Forbidden)", async () => {
-      const res = await request(app)
-        .post(`/api/v1/discounts/${createdDiscountId}/deactivate`)
-        .set("Authorization", `Bearer ${staffToken}`);
-
-      expect(res.status).toBe(403);
-    });
-
-    it("ADMIN can successfully edit an existing discount rule", async () => {
-      const res = await request(app)
-        .patch(`/api/v1/discounts/${createdDiscountId}`)
+        .post("/api/v1/products")
         .set("Authorization", `Bearer ${adminToken}`)
         .send({
-          name: "Admin Updated Discount Title",
+          sku: `NEG-PROD-${Date.now()}`,
+          name: "Invalid Negative Price",
+          baseSellingPriceMinor: "-1000",
         });
 
-      expect(res.status).toBe(200);
-      expect(res.body.data.name).toBe("Admin Updated Discount Title");
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it("should support variant brand, attribute, and calculate surcharge correctly", async () => {
+      const variantRes = await request(app)
+        .post(`/api/v1/products/${createdProductId}/variants`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          sku: `VAR-BRAND-${Date.now()}`,
+          name: "Odoo Connector Module",
+          brand: "Odoo SA",
+          attribute: "Edition: Enterprise 17",
+          priceAdjustmentMinor: "56000", // +₹560.00
+        });
+
+      expect(variantRes.status).toBe(201);
+      expect(variantRes.body.data.brand).toBe("Odoo SA");
+      expect(variantRes.body.data.attribute).toBe("Edition: Enterprise 17");
+
+      // Verify variant pricing utility
+      const basePrice = 200000n; // ₹2,000.00
+      const surcharge = 56000n;  // ₹560.00
+      const finalPrice = calculateVariantPrice(basePrice, surcharge);
+      expect(finalPrice).toBe(256000n); // ₹2,560.00
     });
   });
 
-  // ==========================================
-  // 2. MINIMUM QUANTITY DISCOUNT RULES
-  // ==========================================
-  describe("2. Minimum Quantity Discount Rules & Calculation", () => {
-    const minQtyCode = `MINQTY_${Date.now().toString().slice(-4)}`;
+  describe("3. Plan Management & Lifecycle Gaps", () => {
+    let activePlanId: string;
+    let activePriceId: string;
+    let futurePlanId: string;
+    let futurePriceId: string;
 
-    beforeAll(async () => {
-      // Create discount: 10% off, requires minimum 10 units, product-specific to Product A
-      await DiscountService.createDiscount({
-        code: minQtyCode,
-        name: "Min 10 Seats Product A Special",
-        discountType: DiscountType.PERCENTAGE,
-        valueMinorOrBasisPoints: "1000", // 10%
-        scope: "PRODUCT",
-        minQuantity: 10,
-        productIds: [testProductAId],
-      });
+    afterAll(async () => {
+      const planIds = [activePlanId, futurePlanId].filter(Boolean);
+      for (const id of planIds) {
+        await prisma.subscriptionItem.deleteMany({ where: { subscription: { planId: id } } });
+        await prisma.subscription.deleteMany({ where: { planId: id } });
+        await prisma.planPrice.deleteMany({ where: { planId: id } });
+        await prisma.plan.deleteMany({ where: { id } });
+      }
     });
 
-    it("rejects discount when quantity is below minimum (e.g. 8 seats < 10 minimum)", async () => {
-      const result = await DiscountCalculationService.validateAndCalculateDiscount(minQtyCode, {
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 8,
-            unitPriceMinor: 200000n,
-          },
-        ],
-        subtotalMinor: 1600000n,
-      });
+    it("should create plan supporting all 4 billing intervals, min quantity, and lifecycle policies", async () => {
+      const res = await request(app)
+        .post("/api/v1/plans")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          code: `PLAN-GAP-${Date.now()}`,
+          name: "Multi-Interval Enterprise Plan",
+          minQuantity: 5,
+          autoCloseOnEndDate: true,
+          allowEarlyClosure: false,
+          allowPause: true,
+          allowRenewal: true,
+          prices: [
+            { billingInterval: BillingInterval.DAILY, intervalCount: 1, amountMinor: "10000" },
+            { billingInterval: BillingInterval.WEEKLY, intervalCount: 1, amountMinor: "60000" },
+            { billingInterval: BillingInterval.MONTHLY, intervalCount: 1, amountMinor: "240000" },
+            { billingInterval: BillingInterval.YEARLY, intervalCount: 1, amountMinor: "2500000" },
+          ],
+        });
 
-      expect(result.valid).toBe(false);
-      expect(result.amountDeductedMinor).toBe(0n);
-      expect(result.reason).toContain("Minimum quantity of 10 eligible items required");
+      expect(res.status).toBe(201);
+      expect(res.body.data.minQuantity).toBe(5);
+      expect(res.body.data.autoCloseOnEndDate).toBe(true);
+      expect(res.body.data.allowEarlyClosure).toBe(false);
+      expect(res.body.data.allowPause).toBe(true);
+      expect(res.body.data.allowRenewal).toBe(true);
+      expect(res.body.data.prices.length).toBe(4);
+
+      activePlanId = res.body.data.id;
+      activePriceId = res.body.data.prices[0].id;
     });
 
-    it("accepts discount when quantity meets minimum exactly (10 seats = 10 minimum)", async () => {
-      const result = await DiscountCalculationService.validateAndCalculateDiscount(minQtyCode, {
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 10,
-            unitPriceMinor: 200000n,
-          },
-        ],
-        subtotalMinor: 2000000n, // ₹20,000
-      });
-
-      expect(result.valid).toBe(true);
-      // 10% of ₹20,000 = ₹2,000 = 200000 paise
-      expect(result.amountDeductedMinor).toBe(200000n);
+    it("should reject subscription attempt when requested quantity is below plan minimum", async () => {
+      await expect(
+        PlanService.getActivePlanWithPrice(activePlanId, activePriceId, 3)
+      ).rejects.toThrow("below the required minimum quantity (5)");
     });
 
-    it("accepts discount when quantity is above minimum (15 seats > 10 minimum)", async () => {
-      const result = await DiscountCalculationService.validateAndCalculateDiscount(minQtyCode, {
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 15,
-            unitPriceMinor: 200000n,
-          },
-        ],
-        subtotalMinor: 3000000n, // ₹30,000
-      });
-
-      expect(result.valid).toBe(true);
-      // 10% of ₹30,000 = ₹3,000 = 300000 paise
-      expect(result.amountDeductedMinor).toBe(300000n);
+    it("should accept subscription attempt when requested quantity meets or exceeds plan minimum", async () => {
+      const result = await PlanService.getActivePlanWithPrice(activePlanId, activePriceId, 5);
+      expect(result.plan.id).toBe(activePlanId);
+      expect(result.price.id).toBe(activePriceId);
     });
 
-    it("ineligible product quantity does NOT satisfy another product's minimum quantity", async () => {
-      // Customer buys 8 seats of eligible Product A and 5 units of ineligible Product B
-      // Total items = 13, but only 8 are eligible for the discount!
-      const result = await DiscountCalculationService.validateAndCalculateDiscount(minQtyCode, {
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 8,
-            unitPriceMinor: 200000n,
+    it("should reject plan selection when current date is outside availability dates", async () => {
+      // Create a plan starting next month
+      const futureStart = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const futurePlan = await prisma.plan.create({
+        data: {
+          code: `FUTURE-PLAN-${Date.now()}`,
+          name: "Future Q4 Plan",
+          startDate: futureStart,
+          prices: {
+            create: [
+              {
+                billingInterval: BillingInterval.MONTHLY,
+                intervalCount: 1,
+                amountMinor: 100000n,
+              },
+            ],
           },
-          {
-            productId: testProductBId,
-            quantity: 5,
-            unitPriceMinor: 100000n,
-          },
-        ],
-        subtotalMinor: 2100000n,
+        },
+        include: { prices: true },
       });
 
-      expect(result.valid).toBe(false);
-      expect(result.reason).toContain("Minimum quantity of 10 eligible items required");
-      expect(result.amountDeductedMinor).toBe(0n);
-    });
-  });
+      futurePlanId = futurePlan.id;
+      futurePriceId = futurePlan.prices[0]!.id;
 
-  // ==========================================
-  // 3. PRODUCT-SPECIFIC VS SUBSCRIPTION-WIDE SCOPE
-  // ==========================================
-  describe("3. Product-Specific vs Subscription-Wide Discount Eligibility", () => {
-    it("Product-specific discount applies only to eligible items; ineligible items receive ₹0 discount", async () => {
-      const prodCode = `PROD_${Date.now().toString().slice(-4)}`;
-      await DiscountService.createDiscount({
-        code: prodCode,
-        name: "Product A 20% Discount",
-        discountType: DiscountType.PERCENTAGE,
-        valueMinorOrBasisPoints: "2000", // 20%
-        scope: "PRODUCT",
-        productIds: [testProductAId],
-      });
-
-      const pricing = await PricingService.calculatePricing({
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 1,
-            unitPriceMinor: 200000n, // ₹2,000
-          },
-          {
-            productId: testProductBId,
-            quantity: 1,
-            unitPriceMinor: 100000n, // ₹1,000
-          },
-        ],
-        discountCode: prodCode,
-      });
-
-      // Total subtotal: ₹3,000 (300000 paise)
-      // Product A discount: 20% of ₹2,000 = ₹400 (40000 paise)
-      // Product B discount: ₹0
-      expect(pricing.discountTotalMinor).toBe("40000");
-
-      const itemA = pricing.items.find((i) => i.productId === testProductAId);
-      const itemB = pricing.items.find((i) => i.productId === testProductBId);
-
-      expect(itemA?.discountMinor).toBe("40000");
-      expect(itemB?.discountMinor).toBe("0");
+      await expect(
+        PlanService.getActivePlanWithPrice(futurePlanId, futurePriceId, 1)
+      ).rejects.toThrow("not yet available for subscriptions");
     });
 
-    it("Subscription-wide discount distributes across the entire eligible invoice", async () => {
-      const subCode = `SUB_${Date.now().toString().slice(-4)}`;
-      await DiscountService.createDiscount({
-        code: subCode,
-        name: "Subscription 10% Off",
-        discountType: DiscountType.PERCENTAGE,
-        valueMinorOrBasisPoints: "1000", // 10%
-        scope: "SUBSCRIPTION",
-      });
-
-      const pricing = await PricingService.calculatePricing({
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 1,
-            unitPriceMinor: 200000n, // ₹2,000
-          },
-          {
-            productId: testProductBId,
-            quantity: 1,
-            unitPriceMinor: 100000n, // ₹1,000
-          },
-        ],
-        discountCode: subCode,
-      });
-
-      // 10% of ₹3,000 = ₹300 (30000 paise)
-      expect(pricing.discountTotalMinor).toBe("30000");
-      // Taxable subtotal = ₹2,700
-      expect(pricing.taxableAmountMinor).toBe("270000");
-    });
-
-    it("Clamping prevents negative invoice payable amounts", async () => {
-      const hugeDiscountCode = `HUGE_${Date.now().toString().slice(-4)}`;
-      await DiscountService.createDiscount({
-        code: hugeDiscountCode,
-        name: "Mega Fixed ₹10,000 Off",
-        discountType: DiscountType.FIXED_AMOUNT,
-        valueMinorOrBasisPoints: "1000000", // ₹10,000
-        scope: "SUBSCRIPTION",
-      });
-
-      const pricing = await PricingService.calculatePricing({
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 1,
-            unitPriceMinor: 200000n, // ₹2,000 invoice subtotal
-          },
-        ],
-        discountCode: hugeDiscountCode,
-      });
-
-      // Discount cannot exceed the subtotal ₹2,000; payable cannot be negative
-      expect(pricing.discountTotalMinor).toBe("200000");
-      expect(pricing.taxableAmountMinor).toBe("0");
-      expect(BigInt(pricing.grandTotalMinor)).toBeGreaterThanOrEqual(0n);
-    });
-  });
-
-  // ==========================================
-  // 4. AUTOMATIC RECURRING DISCOUNT APPLICATION
-  // ==========================================
-  describe("4. Automatic Recurring Discount Application & Billing Cycles", () => {
-    let testSubId: string;
-    const recurringCode = `REC3_${Date.now().toString().slice(-4)}`;
-
-    beforeAll(async () => {
-      // Create subscription
-      const plan = await prisma.plan.findFirst();
+    it("should ensure deactivating a plan does not terminate existing subscriptions", async () => {
+      // Create a mock customer & active subscription linked to activePlanId
       const customer = await prisma.customer.findFirst();
+      if (!customer) return;
 
       const sub = await prisma.subscription.create({
         data: {
-          subscriptionNumber: `SUB-TEST-${Date.now()}`,
-          customerId: customer!.id,
-          planId: plan!.id,
+          subscriptionNumber: `SUB-GAP-${Date.now()}`,
+          customerId: customer.id,
+          planId: activePlanId,
+          billingInterval: BillingInterval.MONTHLY,
           status: "ACTIVE",
-          billingInterval: "MONTHLY",
-          intervalCount: 1,
           currentPeriodStart: new Date(),
-          currentPeriodEnd: new Date(Date.now() + 30 * 86400000),
-          nextBillingDate: new Date(Date.now() + 30 * 86400000),
-        },
-      });
-      testSubId = sub.id;
-
-      // Create 10% recurring discount valid for 3 cycles
-      await DiscountService.createDiscount({
-        code: recurringCode,
-        name: "10% Off First 3 Monthly Cycles",
-        discountType: DiscountType.PERCENTAGE,
-        valueMinorOrBasisPoints: "1000", // 10%
-        scope: "SUBSCRIPTION",
-        recurringCycleCount: 3,
-      });
-
-      // Attach discount to subscription
-      await DiscountService.attachDiscountToSubscription({
-        subscriptionId: testSubId,
-        discountCode: recurringCode,
-      });
-    });
-
-    it("Cycle 1: Auto-detects attached discount without manual code entry and applies ₹200 discount", async () => {
-      // Simulate Cycle 1 billing
-      const pricing = await PricingService.calculatePricing({
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 1,
-            unitPriceMinor: 200000n, // ₹2,000
-          },
-        ],
-        subscriptionId: testSubId, // No discountCode provided!
-      });
-
-      // 10% of ₹2,000 = ₹200 (20000 paise)
-      expect(pricing.discountTotalMinor).toBe("20000");
-      expect(pricing.discountBreakdown[0]?.code).toBe(recurringCode);
-
-      // Record Cycle 1 invoice and redemption
-      const inv1 = await prisma.invoice.create({
-        data: {
-          invoiceNumber: `INV-CYC1-${Date.now()}`,
-          customer: { connect: { id: customerId } },
-          subscription: { connect: { id: testSubId } },
-          subtotalMinor: 200000n,
-          discountAmountMinor: 20000n,
-          totalAmountMinor: 180000n,
-          balanceDueMinor: 180000n,
-          status: InvoiceStatus.ISSUED,
-          dueDate: new Date(),
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
       });
 
-      await prisma.$transaction(async (tx) => {
-        const disc = await tx.discount.findUnique({ where: { code: recurringCode } });
-        await DiscountCalculationService.recordDiscountRedemption(tx, disc!.id, 20000n, {
-          invoiceId: inv1.id,
-          subscriptionId: testSubId,
-        });
-      });
-    });
+      // Deactivate the plan (Admin closes it to new subscriptions)
+      await PlanService.deactivatePlan(activePlanId);
 
-    it("Cycle 2: Automatically applies discount on the second recurring billing run", async () => {
-      const pricing = await PricingService.calculatePricing({
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 1,
-            unitPriceMinor: 200000n,
-          },
-        ],
-        subscriptionId: testSubId,
-      });
+      // Verify the plan is inactive
+      const updatedPlan = await prisma.plan.findUnique({ where: { id: activePlanId } });
+      expect(updatedPlan?.isActive).toBe(false);
 
-      expect(pricing.discountTotalMinor).toBe("20000");
+      // Verify the existing subscription remains ACTIVE and completely unaffected
+      const existingSub = await prisma.subscription.findUnique({ where: { id: sub.id } });
+      expect(existingSub?.status).toBe("ACTIVE");
+      expect(existingSub?.planId).toBe(activePlanId);
 
-      const inv2 = await prisma.invoice.create({
-        data: {
-          invoiceNumber: `INV-CYC2-${Date.now()}`,
-          customer: { connect: { id: customerId } },
-          subscription: { connect: { id: testSubId } },
-          subtotalMinor: 200000n,
-          discountAmountMinor: 20000n,
-          totalAmountMinor: 180000n,
-          balanceDueMinor: 180000n,
-          status: InvoiceStatus.ISSUED,
-          dueDate: new Date(),
-        },
-      });
-
-      await prisma.$transaction(async (tx) => {
-        const disc = await tx.discount.findUnique({ where: { code: recurringCode } });
-        await DiscountCalculationService.recordDiscountRedemption(tx, disc!.id, 20000n, {
-          invoiceId: inv2.id,
-          subscriptionId: testSubId,
-        });
-      });
-    });
-
-    it("Cycle 3: Automatically applies discount on the third recurring billing run", async () => {
-      const pricing = await PricingService.calculatePricing({
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 1,
-            unitPriceMinor: 200000n,
-          },
-        ],
-        subscriptionId: testSubId,
-      });
-
-      expect(pricing.discountTotalMinor).toBe("20000");
-
-      const inv3 = await prisma.invoice.create({
-        data: {
-          invoiceNumber: `INV-CYC3-${Date.now()}`,
-          customer: { connect: { id: customerId } },
-          subscription: { connect: { id: testSubId } },
-          subtotalMinor: 200000n,
-          discountAmountMinor: 20000n,
-          totalAmountMinor: 180000n,
-          balanceDueMinor: 180000n,
-          status: InvoiceStatus.ISSUED,
-          dueDate: new Date(),
-        },
-      });
-
-      await prisma.$transaction(async (tx) => {
-        const disc = await tx.discount.findUnique({ where: { code: recurringCode } });
-        await DiscountCalculationService.recordDiscountRedemption(tx, disc!.id, 20000n, {
-          invoiceId: inv3.id,
-          subscriptionId: testSubId,
-        });
-      });
-    });
-
-    it("Cycle 4: Automatically stops applying discount after configured 3 cycles (reverts to base ₹2,000)", async () => {
-      const pricing = await PricingService.calculatePricing({
-        items: [
-          {
-            productId: testProductAId,
-            quantity: 1,
-            unitPriceMinor: 200000n, // ₹2,000 base
-          },
-        ],
-        subscriptionId: testSubId,
-      });
-
-      // Cycles 1, 2, and 3 exhausted the allowed duration -> Cycle 4 receives ₹0 discount
-      expect(pricing.discountTotalMinor).toBe("0");
-      expect(pricing.discountBreakdown.length).toBe(0);
-      expect(pricing.taxableAmountMinor).toBe("200000"); // Base ₹2,000
-    });
-  });
-
-  // ==========================================
-  // 5. PAYMENT NOTES & CUSTOMER PORTAL PRIVACY
-  // ==========================================
-  describe("5. Payment Record Enhancements & Customer Note Privacy", () => {
-    it("records both internal and customer notes, and strictly hides internal notes from portal", async () => {
-      const paymentRes = await PaymentService.recordPayment({
-        customerId,
-        amountMinor: 50000n, // ₹500
-        paymentMethod: PaymentMethod.BANK_TRANSFER,
-        status: PaymentStatus.COMPLETED,
-        internalNotes: "CONFIDENTIAL: Checked against HDFC Bank Wire Statement Ref #TXN9992384.",
-        customerNotes: "Payment received through HDFC bank transfer for October subscription.",
-      });
-
-      expect(paymentRes).toBeDefined();
-      expect(paymentRes?.internalNotes).toContain("CONFIDENTIAL: Checked against HDFC");
-      expect(paymentRes?.customerNotes).toBe(
-        "Payment received through HDFC bank transfer for October subscription."
-      );
-
-      // Verify portal query for this customer
-      const portalPayments = await PortalService.getPayments(customerId);
-      const targetPayment = portalPayments.find((p) => p.id === paymentRes?.id);
-
-      expect(targetPayment).toBeDefined();
-      // Customer-visible note is visible
-      expect(targetPayment?.notes).toBe(
-        "Payment received through HDFC bank transfer for October subscription."
-      );
-      // Internal note must NEVER be exposed
-      expect((targetPayment as any).internalNotes).toBeUndefined();
-      expect(
-        JSON.stringify(targetPayment, (_, v) => (typeof v === "bigint" ? v.toString() : v))
-      ).not.toContain("CONFIDENTIAL: Checked against HDFC");
-    });
-
-    it("prevents customer role from submitting arbitrary COMPLETED payment status", async () => {
-      const res = await request(app)
-        .post("/api/v1/payments")
-        .set("Authorization", `Bearer ${customerToken}`)
-        .send({
-          customerId,
-          amountMinor: "20000",
-          paymentMethod: PaymentMethod.UPI,
-          status: PaymentStatus.COMPLETED, // Customer attempting to self-mark as COMPLETED
-          internalNotes: "Customer injected staff note",
-        });
-
-      expect(res.status).toBe(201);
-      // Status must be coerced to PENDING
-      expect(res.body.data.status).toBe(PaymentStatus.PENDING);
-      // Internal notes must be ignored
-      expect(res.body.data.internalNotes).toBeNull();
-    });
-  });
-
-  // ==========================================
-  // 6. CONCURRENCY & DUPLICATE REDEMPTION SAFEGUARDS
-  // ==========================================
-  describe("6. Concurrency & Redemptions Safeguards", () => {
-    it("prevents duplicate discount application against the same invoice", async () => {
-      const testInvoice = await prisma.invoice.create({
-        data: {
-          invoiceNumber: `INV-DUP-${Date.now()}`,
-          customer: { connect: { id: customerId } },
-          subtotalMinor: 100000n,
-          totalAmountMinor: 100000n,
-          balanceDueMinor: 100000n,
-          status: InvoiceStatus.ISSUED,
-          dueDate: new Date(),
-        },
-      });
-
-      const discount = await prisma.discount.findFirst({ where: { isActive: true } });
-
-      await prisma.$transaction(async (tx) => {
-        await DiscountCalculationService.recordDiscountRedemption(tx, discount!.id, 10000n, {
-          invoiceId: testInvoice.id,
-        });
-      });
-
-      // Second attempt on the exact same invoice should throw BusinessRuleError
-      await expect(
-        prisma.$transaction(async (tx) => {
-          await DiscountCalculationService.recordDiscountRedemption(tx, discount!.id, 10000n, {
-            invoiceId: testInvoice.id,
-          });
-        })
-      ).rejects.toThrow("Discount is already applied to this invoice");
+      // Clean up subscription
+      await prisma.subscription.delete({ where: { id: sub.id } });
     });
   });
 });

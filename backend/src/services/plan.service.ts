@@ -12,7 +12,11 @@ export class PlanService {
    * Contract C: Plan lookup for subscription creation.
    * Ensures plan and planPrice are valid and active.
    */
-  static async getActivePlanWithPrice(planId: string, planPriceId: string) {
+  static async getActivePlanWithPrice(
+    planId: string,
+    planPriceId: string,
+    requestedQuantity?: number
+  ) {
     const plan = await prisma.plan.findUnique({
       where: { id: planId },
       include: {
@@ -28,6 +32,29 @@ export class PlanService {
 
     if (!plan || !plan.isActive) {
       throw new BusinessRuleError(`Plan ${planId} is inactive or not found`);
+    }
+
+    const now = new Date();
+
+    // Check availability start date
+    if (plan.startDate && now < plan.startDate) {
+      throw new BusinessRuleError(
+        `Plan '${plan.name}' is not yet available for subscriptions (starts at ${plan.startDate.toISOString()})`
+      );
+    }
+
+    // Check availability end date
+    if (plan.endDate && now > plan.endDate) {
+      throw new BusinessRuleError(
+        `Plan '${plan.name}' is no longer available for new subscriptions (ended on ${plan.endDate.toISOString()})`
+      );
+    }
+
+    // Check minimum purchase quantity
+    if (requestedQuantity !== undefined && requestedQuantity < plan.minQuantity) {
+      throw new BusinessRuleError(
+        `Requested quantity (${requestedQuantity}) is below the required minimum quantity (${plan.minQuantity}) for plan '${plan.name}'`
+      );
     }
 
     const price = plan.prices.find((p) => p.id === planPriceId);
@@ -89,9 +116,14 @@ export class PlanService {
         code: data.code.trim(),
         name: data.name.trim(),
         description: data.description || null,
+        minQuantity: data.minQuantity !== undefined ? Number(data.minQuantity) : 1,
         startDate: data.startDate ? new Date(data.startDate) : null,
         endDate: data.endDate ? new Date(data.endDate) : null,
         isActive: data.isActive !== undefined ? data.isActive : true,
+        autoCloseOnEndDate: data.autoCloseOnEndDate !== undefined ? Boolean(data.autoCloseOnEndDate) : true,
+        allowEarlyClosure: data.allowEarlyClosure !== undefined ? Boolean(data.allowEarlyClosure) : false,
+        allowPause: data.allowPause !== undefined ? Boolean(data.allowPause) : true,
+        allowRenewal: data.allowRenewal !== undefined ? Boolean(data.allowRenewal) : true,
         prices: {
           create: data.prices.map((p: any) => ({
             currency: p.currency || "INR",
@@ -227,9 +259,14 @@ export class PlanService {
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name.trim();
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.minQuantity !== undefined) updateData.minQuantity = Number(data.minQuantity);
     if (data.startDate !== undefined) updateData.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) updateData.endDate = data.endDate ? new Date(data.endDate) : null;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.autoCloseOnEndDate !== undefined) updateData.autoCloseOnEndDate = Boolean(data.autoCloseOnEndDate);
+    if (data.allowEarlyClosure !== undefined) updateData.allowEarlyClosure = Boolean(data.allowEarlyClosure);
+    if (data.allowPause !== undefined) updateData.allowPause = Boolean(data.allowPause);
+    if (data.allowRenewal !== undefined) updateData.allowRenewal = Boolean(data.allowRenewal);
 
     const updated = await prisma.plan.update({
       where: { id },

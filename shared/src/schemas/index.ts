@@ -137,18 +137,17 @@ export const updateCustomerSchema = z.object({
 // String representation for minor amounts in requests (accepts string or number, converts to string)
 export const minorAmountSchema = z
   .union([z.string(), z.number(), z.bigint()])
-  .transform((val) => {
-    const str = String(val).trim();
-    if (!/^\d+$/.test(str)) {
-      throw new Error("Amount must be a non-negative integer string in minor units");
-    }
-    return str;
+  .transform((val) => String(val).trim())
+  .refine((val) => /^\d+$/.test(val), {
+    message: "Amount must be a non-negative integer string in minor units",
   });
 
 // Product schemas
 export const createProductVariantSchema = z.object({
   sku: z.string().min(2).trim(),
   name: z.string().min(2).trim(),
+  brand: z.string().optional().nullable(),
+  attribute: z.string().optional().nullable(),
   priceAdjustmentType: z.nativeEnum(PriceAdjustmentType).default(PriceAdjustmentType.SURCHARGE),
   priceAdjustmentMinor: minorAmountSchema.default("0"),
   isActive: z.boolean().default(true),
@@ -157,6 +156,8 @@ export const createProductVariantSchema = z.object({
 export const updateProductVariantSchema = z.object({
   name: z.string().min(2).optional(),
   sku: z.string().min(2).optional(),
+  brand: z.string().optional().nullable(),
+  attribute: z.string().optional().nullable(),
   priceAdjustmentType: z.nativeEnum(PriceAdjustmentType).optional(),
   priceAdjustmentMinor: minorAmountSchema.optional(),
   isActive: z.boolean().optional(),
@@ -210,9 +211,14 @@ export const createPlanSchema = z.object({
   code: z.string().min(2).trim(),
   name: z.string().min(2).trim(),
   description: z.string().optional().nullable(),
+  minQuantity: z.number().int().positive().default(1),
   startDate: z.string().datetime({ offset: true }).optional().nullable(),
   endDate: z.string().datetime({ offset: true }).optional().nullable(),
   isActive: z.boolean().default(true),
+  autoCloseOnEndDate: z.boolean().default(true),
+  allowEarlyClosure: z.boolean().default(false),
+  allowPause: z.boolean().default(true),
+  allowRenewal: z.boolean().default(true),
   prices: z.array(planPriceInputSchema).min(1, "Plan must have at least one price configuration"),
   items: z.array(planItemInputSchema).optional().default([]),
 });
@@ -220,9 +226,14 @@ export const createPlanSchema = z.object({
 export const updatePlanSchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().optional().nullable(),
+  minQuantity: z.number().int().positive().optional(),
   startDate: z.string().datetime({ offset: true }).optional().nullable(),
   endDate: z.string().datetime({ offset: true }).optional().nullable(),
   isActive: z.boolean().optional(),
+  autoCloseOnEndDate: z.boolean().optional(),
+  allowEarlyClosure: z.boolean().optional(),
+  allowPause: z.boolean().optional(),
+  allowRenewal: z.boolean().optional(),
 });
 
 // Pagination query schema

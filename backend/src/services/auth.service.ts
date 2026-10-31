@@ -13,6 +13,7 @@ import {
   ValidationError,
 } from "../utils/errors";
 import { createAuditLog } from "./audit.service";
+import { emailService } from "./email/email.service";
 
 const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(
   process.env.REFRESH_TOKEN_EXPIRY_DAYS || "7",
@@ -288,7 +289,14 @@ export class AuthService {
     });
 
     const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${rawToken}`;
-    console.log(`[PASSWORD RESET MOCK EMAIL] User: ${user.email} | Reset Link: ${resetUrl}`);
+
+    // Dispatch via email service adapter
+    await emailService.sendPasswordResetEmail({
+      to: user.email,
+      userName: user.fullName,
+      resetUrl,
+      expiresAtMinutes: 60,
+    });
 
     return {
       message: "If an account with that email exists, a password reset link has been generated.",

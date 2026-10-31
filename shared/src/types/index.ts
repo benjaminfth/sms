@@ -99,6 +99,8 @@ export interface ProductVariantDTO {
   productId: string;
   sku: string;
   name: string;
+  brand?: string | null;
+  attribute?: string | null;
   priceAdjustmentType: PriceAdjustmentType;
   priceAdjustmentMinor: string;
   isActive: boolean;
@@ -158,9 +160,14 @@ export interface PlanDTO {
   code: string;
   name: string;
   description?: string | null;
+  minQuantity: number;
   startDate?: string | null;
   endDate?: string | null;
   isActive: boolean;
+  autoCloseOnEndDate: boolean;
+  allowEarlyClosure: boolean;
+  allowPause: boolean;
+  allowRenewal: boolean;
   createdAt: string;
   updatedAt: string;
   prices: PlanPriceDTO[];
