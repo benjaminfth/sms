@@ -15,8 +15,10 @@ export default function HomePage() {
         router.push("/login");
       } else if (user.role === Role.ADMIN) {
         router.push("/admin/dashboard");
-      } else {
+      } else if (user.role === Role.STAFF) {
         router.push("/staff/customers");
+      } else {
+        router.push("/portal");
       }
     }
   }, [user, loading, router]);
