@@ -51,11 +51,11 @@ export default function AdminInvoicesPage() {
         <div>
           <Link
             href={`/admin/invoices/${item.id}`}
-            className="font-semibold text-brand-600 hover:text-brand-800 font-mono flex items-center space-x-1"
+            className="font-medium text-[#172033] hover:text-[#315CF5] font-mono block"
           >
-            <span>{item.invoiceNumber}</span>
+            {item.invoiceNumber}
           </Link>
-          <span className="text-[11px] text-slate-400 font-mono">
+          <span className="text-[11px] text-[#64748B] font-mono">
             Issued: {formatDate(item.createdAt)}
           </span>
         </div>
@@ -64,10 +64,10 @@ export default function AdminInvoicesPage() {
     {
       header: "Customer",
       cell: (item) => (
-        <div>
-          <p className="font-medium text-slate-900">{item.customer?.fullName || "—"}</p>
+        <div className="min-w-0 max-w-[200px]">
+          <p className="font-medium text-[#172033] truncate">{item.customer?.fullName || "—"}</p>
           {item.customer?.companyName && (
-            <p className="text-xs text-slate-500">{item.customer.companyName}</p>
+            <p className="text-[11px] text-[#64748B] truncate">{item.customer.companyName}</p>
           )}
         </div>
       ),
@@ -75,31 +75,34 @@ export default function AdminInvoicesPage() {
     {
       header: "Due Date",
       cell: (item) => (
-        <span className="text-xs font-mono text-slate-600">
+        <span className="text-[12px] font-mono text-[#64748B]">
           {formatDate(item.dueDate)}
         </span>
       ),
     },
     {
       header: "Total",
+      align: "right",
       cell: (item) => (
-        <div className="font-semibold text-slate-900 font-mono">
+        <div className="font-mono font-medium text-[#172033]">
           <MoneyDisplay amountMinor={item.totalAmountMinor} currency={item.currency} />
         </div>
       ),
     },
     {
       header: "Amount Paid",
+      align: "right",
       cell: (item) => (
-        <div className="font-mono text-emerald-700 text-xs font-medium">
+        <div className="font-mono text-[#16865B] text-[12px] font-medium">
           <MoneyDisplay amountMinor={item.amountPaidMinor} currency={item.currency} />
         </div>
       ),
     },
     {
       header: "Balance Due",
+      align: "right",
       cell: (item) => (
-        <div className="font-mono font-semibold text-xs text-slate-900">
+        <div className="font-mono font-semibold text-[12px] text-[#172033]">
           <MoneyDisplay amountMinor={item.balanceDueMinor} currency={item.currency} />
         </div>
       ),
@@ -110,23 +113,23 @@ export default function AdminInvoicesPage() {
     },
     {
       header: "Actions",
-      className: "text-right",
+      align: "right",
       cell: (item) => (
-        <div className="flex items-center justify-end space-x-2">
+        <div className="flex items-center justify-end space-x-1.5">
           <Link
             href={`/admin/invoices/${item.id}/print`}
             target="_blank"
-            className="p-1.5 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100"
-            title="Print Invoice"
+            className="p-1.5 text-[#64748B] hover:text-[#172033] hover:bg-[#F8FAFC] rounded-[6px] transition"
+            title="Print PDF Document"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-3.5 h-3.5" />
           </Link>
           <Link
             href={`/admin/invoices/${item.id}`}
-            className="inline-flex items-center px-2 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50"
+            className="p-1.5 text-[#64748B] hover:text-[#315CF5] hover:bg-[#EFF4FE] rounded-[6px] transition"
+            title="View Details"
           >
-            <Eye className="w-3 h-3 mr-1 text-slate-500" />
-            View
+            <Eye className="w-3.5 h-3.5" />
           </Link>
         </div>
       ),
@@ -137,37 +140,42 @@ export default function AdminInvoicesPage() {
     <DashboardShell>
       <PageHeader
         title="Invoices"
-        description="Manage and track billing invoices, payment statuses, and outstanding balances."
+        description="Authoritative recurring billing statements, tax assessments and collection ledger."
+        badge={
+          pagination ? (
+            <span className="px-2 py-0.5 rounded-[5px] bg-[#F1F5F9] border border-[#E5EAF1] text-[11px] font-medium text-[#64748B]">
+              {pagination.total} Total
+            </span>
+          ) : undefined
+        }
       />
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5" />
           <input
             type="text"
             placeholder="Search invoice # or customer..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-[#F8FAFC] border border-[#E5EAF1] rounded-[8px] focus:bg-white focus:outline-hidden focus:border-[#315CF5] text-[#172033] transition"
           />
         </div>
 
-        <div className="flex items-center space-x-3 w-full md:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white text-slate-700"
-          >
-            <option value="">All Statuses</option>
-            <option value="ISSUED">Issued</option>
-            <option value="PAID">Paid</option>
-            <option value="PARTIALLY_PAID">Partially Paid</option>
-            <option value="OVERDUE">Overdue</option>
-            <option value="VOID">Void</option>
-            <option value="DRAFT">Draft</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="w-full sm:w-auto px-3 py-1.5 text-[12px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+        >
+          <option value="">All Statuses</option>
+          <option value="ISSUED">Issued</option>
+          <option value="PAID">Paid</option>
+          <option value="PARTIALLY_PAID">Partially Paid</option>
+          <option value="OVERDUE">Overdue</option>
+          <option value="VOID">Void</option>
+          <option value="DRAFT">Draft</option>
+        </select>
       </div>
 
       <DataTable
@@ -176,6 +184,8 @@ export default function AdminInvoicesPage() {
         pagination={pagination}
         onPageChange={(p) => setPage(p)}
         loading={loading}
+        emptyTitle="No invoices found"
+        emptyDescription="Invoices generated by billing automation runs or converted quotations will appear here."
       />
     </DashboardShell>
   );

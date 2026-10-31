@@ -1,5 +1,5 @@
 import React from "react";
-import { FolderOpen } from "lucide-react";
+import { Inbox } from "lucide-react";
 
 interface EmptyStateProps {
   title: string;
@@ -17,16 +17,16 @@ export function EmptyState({
   icon,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center p-12 text-center bg-white border border-dashed border-slate-300 rounded-xl my-4">
-      <div className="p-4 bg-slate-50 text-slate-400 rounded-full mb-4">
-        {icon || <FolderOpen className="w-8 h-8" />}
+    <div className="flex flex-col items-center justify-center p-12 text-center bg-white border border-[#E5EAF1] rounded-[10px] my-4 shadow-xs">
+      <div className="w-11 h-11 rounded-[8px] bg-[#F8FAFC] border border-[#E5EAF1] text-[#94A3B8] flex items-center justify-center mb-3.5">
+        {icon || <Inbox className="w-5 h-5" />}
       </div>
-      <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-      <p className="text-sm text-slate-500 max-w-sm mt-1">{description}</p>
+      <h3 className="text-[15px] font-semibold text-[#172033]">{title}</h3>
+      <p className="text-[13px] text-[#64748B] max-w-sm mt-1 leading-relaxed">{description}</p>
       {actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="mt-5 px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm transition"
+          className="mt-4 px-3.5 py-1.5 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] transition"
         >
           {actionLabel}
         </button>

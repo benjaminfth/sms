@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { api } from "@/lib/api-client";
 import { CustomerDTO, ProductDTO, QuotationTemplateDTO } from "@sms/shared";
 import { formatMinorToCurrency } from "@sms/shared";
-import { ArrowLeft, Plus, Trash2, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
 
 interface ItemRow {
   productId: string;
@@ -172,13 +172,13 @@ export default function NewQuotationPage() {
     setError(null);
 
     if (!customerId) {
-      setError("Please select a customer");
+      setError("Please select a customer.");
       return;
     }
 
     const validItems = items.filter((it) => it.productId);
     if (validItems.length === 0) {
-      setError("Please add at least one valid product line item");
+      setError("Please add at least one valid product line item.");
       return;
     }
 
@@ -213,41 +213,44 @@ export default function NewQuotationPage() {
 
   return (
     <DashboardShell>
-      <PageHeader
-        title="Create New Quotation"
-        description="Generate a commercial quote for an existing customer."
-      >
+      <div className="mb-4">
         <Link
           href="/admin/quotations"
-          className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
         >
-          <ArrowLeft className="w-4 h-4 mr-1" />
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
           Back to Quotations
         </Link>
-      </PageHeader>
+      </div>
+
+      <PageHeader
+        title="New Quotation"
+        description="Draft a formal commercial proposal with itemized pricing and terms."
+      />
 
       {error && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl mb-6 text-sm">
+        <div className="bg-[#FDEDED] border border-[#F8C6C6] text-[#D14343] px-3.5 py-2.5 rounded-[8px] mb-6 text-[12px] font-medium">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-          <h2 className="text-base font-semibold text-slate-900 border-b border-slate-100 pb-3">
+      <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
+        {/* Customer & General Section */}
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs space-y-4">
+          <h2 className="text-[14px] font-semibold text-[#172033] pb-3 border-b border-[#E5EAF1]">
             Customer & General Information
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                Customer <span className="text-rose-500">*</span>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Customer <span className="text-[#D14343]">*</span>
               </label>
               <select
                 required
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
                 disabled={loadingInitial}
               >
                 <option value="">Select a customer...</option>
@@ -260,15 +263,15 @@ export default function NewQuotationPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                Template (Optional)
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Quotation Template (Optional)
               </label>
               <select
                 value={templateId}
                 onChange={(e) => handleTemplateChange(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               >
-                <option value="">Select a quotation template...</option>
+                <option value="">Select a template...</option>
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -278,54 +281,57 @@ export default function NewQuotationPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                Valid Until <span className="text-rose-500">*</span>
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                Valid Until <span className="text-[#D14343]">*</span>
               </label>
               <input
                 type="date"
                 required
                 value={validUntil}
                 onChange={(e) => setValidUntil(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              <label className="block text-[12px] font-medium text-[#172033] mb-1">
                 Discount Code (Optional)
               </label>
               <input
                 type="text"
-                placeholder="e.g. LAUNCH20"
+                placeholder="e.g. EARLYBIRD10"
                 value={discountCode}
                 onChange={(e) => setDiscountCode(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full px-3 py-1.5 text-[13px] font-mono uppercase bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-              Terms & Notes
+            <label className="block text-[12px] font-medium text-[#172033] mb-1">
+              Terms & Stipulations
             </label>
             <textarea
-              rows={3}
+              rows={2}
               placeholder="Commercial payment terms, delivery notes, or SLA stipulations..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-3 py-2 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
             />
           </div>
         </div>
 
-        {/* Line Items Table */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h2 className="text-base font-semibold text-slate-900">Products & Pricing</h2>
+        {/* Products & Pricing Section */}
+        <div className="bg-white p-5 rounded-[10px] border border-[#E5EAF1] shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5EAF1]">
+            <div>
+              <h2 className="text-[14px] font-semibold text-[#172033]">Products & Pricing</h2>
+              <p className="text-[12px] text-[#64748B] mt-0.5">Itemize quoted services and quantities</p>
+            </div>
             <button
               type="button"
               onClick={addItemRow}
-              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200"
+              className="inline-flex items-center px-2.5 py-1 text-[12px] font-medium rounded-[6px] bg-[#F8FAFC] border border-[#E5EAF1] hover:bg-[#EFF4FE] hover:text-[#315CF5] text-[#172033] transition"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Add Item
@@ -340,15 +346,15 @@ export default function NewQuotationPage() {
               return (
                 <div
                   key={index}
-                  className="grid grid-cols-12 gap-3 items-center bg-slate-50 p-3 rounded-lg border border-slate-200"
+                  className="flex flex-col sm:flex-row items-center gap-3 bg-[#F8FAFC] p-3 rounded-[8px] border border-[#E5EAF1]"
                 >
-                  <div className="col-span-5">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Product</label>
+                  <div className="w-full sm:flex-1">
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Product</label>
                     <select
                       required
                       value={row.productId}
                       onChange={(e) => handleProductChange(index, e.target.value)}
-                      className="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="w-full px-2.5 py-1.5 text-[12px] bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033]"
                     >
                       <option value="">Select a product...</option>
                       {products.map((p) => (
@@ -359,13 +365,13 @@ export default function NewQuotationPage() {
                     </select>
                   </div>
 
-                  <div className="col-span-3">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Variant (Optional)</label>
+                  <div className="w-full sm:w-44">
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Variant</label>
                     <select
                       value={row.productVariantId || ""}
                       onChange={(e) => handleVariantChange(index, e.target.value)}
                       disabled={availableVariants.length === 0}
-                      className="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                      className="w-full px-2.5 py-1.5 text-[12px] bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033] disabled:opacity-50"
                     >
                       <option value="">Base Product</option>
                       {availableVariants.map((v) => (
@@ -376,71 +382,65 @@ export default function NewQuotationPage() {
                     </select>
                   </div>
 
-                  <div className="col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Quantity</label>
+                  <div className="w-full sm:w-20">
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Qty</label>
                     <input
                       type="number"
                       step="1"
                       min="1"
                       value={row.quantity}
                       onChange={(e) => handleQuantityChange(index, e.target.value)}
-                      className="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="w-full px-2.5 py-1.5 text-[12px] font-mono bg-white border border-[#E5EAF1] rounded-[6px] text-[#172033]"
                     />
                   </div>
 
-                  <div className="col-span-1 text-right">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Unit Price</label>
-                    <span className="text-xs font-semibold text-slate-800 font-mono block py-1.5">
+                  <div className="w-full sm:w-32 text-right">
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Unit Price</label>
+                    <span className="text-[13px] font-mono font-medium text-[#172033] block py-1.5">
                       {formatMinorToCurrency(row.unitPriceMinor)}
                     </span>
                   </div>
 
-                  <div className="col-span-1 text-center pt-5">
-                    <button
-                      type="button"
-                      onClick={() => removeItemRow(index)}
-                      disabled={items.length <= 1}
-                      className="text-slate-400 hover:text-rose-600 disabled:opacity-30 p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItemRow(index)}
+                    disabled={items.length <= 1}
+                    className="p-1.5 text-[#94A3B8] hover:text-[#D14343] hover:bg-[#FDEDED] rounded-[6px] transition sm:mt-5 disabled:opacity-30"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               );
             })}
           </div>
 
-          {/* Subtotal Preview */}
-          <div className="pt-4 border-t border-slate-200 flex justify-end">
-            <div className="w-64 space-y-1.5 text-right">
-              <div className="flex justify-between text-sm text-slate-600">
-                <span>Estimated Subtotal:</span>
-                <span className="font-semibold text-slate-900 font-mono">
-                  {formatMinorToCurrency(subtotal)}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Taxes (e.g. 18% GST) and discounts will be calculated precisely on quotation creation.
+          <div className="pt-3 border-t border-[#E5EAF1] flex justify-end">
+            <div className="text-right">
+              <span className="text-[12px] text-[#64748B] mr-2">Estimated Subtotal:</span>
+              <span className="font-mono font-semibold text-[15px] text-[#172033]">
+                {formatMinorToCurrency(subtotal)}
+              </span>
+              <p className="text-[11px] text-[#94A3B8] mt-0.5">
+                GST and discounts calculated upon saving quotation.
               </p>
             </div>
           </div>
         </div>
 
         {/* Submit Actions */}
-        <div className="flex items-center justify-end space-x-3">
+        <div className="flex items-center justify-end space-x-2.5 pt-2">
           <Link
             href="/admin/quotations"
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+            className="px-4 py-2 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px] transition"
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={submitting}
-            className="inline-flex items-center px-5 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-50 shadow-sm"
+            className="px-4 py-2 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs transition disabled:opacity-50"
           >
-            <Save className="w-4 h-4 mr-2" />
-            {submitting ? "Saving..." : "Create Quotation"}
+            {submitting ? "Creating..." : "Save Quotation"}
           </button>
         </div>
       </form>

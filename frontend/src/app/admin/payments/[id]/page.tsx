@@ -1,23 +1,22 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { MoneyDisplay } from "@/components/shared/MoneyDisplay";
 import { api } from "@/lib/api-client";
-import { PaymentStatus } from "@sms/shared";
+import { PaymentStatus, formatMinorToCurrency } from "@sms/shared";
+import { formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
   CreditCard,
   Building,
   Calendar,
-  CheckCircle2,
-  XCircle,
   Receipt,
-  Layers,
   Plus,
-  AlertCircle,
   Check,
   X,
 } from "lucide-react";
@@ -37,7 +36,7 @@ export default function PaymentDetailsPage() {
   const [allocating, setAllocating] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const loadPayment = async () => {
+  const loadPayment = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get<any>(`/payments/${paymentId}`);
@@ -58,54 +57,42 @@ export default function PaymentDetailsPage() {
                 BigInt(inv.balanceDueMinor || 0) > BigInt(0)
             );
             setOpenInvoices(open);
-            if (open.length > 0) {
-              setSelectedInvoiceId(open[0].id);
-              const unallocated = Number(res.data.unallocatedAmountMinor || 0) / 100;
-              const due = Number(open[0].balanceDueMinor || 0) / 100;
-              setAllocateAmountRupees(String(Math.min(unallocated, due)));
-            }
           }
         }
       }
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Failed to load payment" });
+    } catch (err) {
+      console.error("Failed to load payment detail:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [paymentId]);
 
   useEffect(() => {
-    loadPayment();
-  }, [paymentId]);
+    if (paymentId) loadPayment();
+  }, [paymentId, loadPayment]);
 
   const handleAllocate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedInvoiceId) return;
-
-    const amt = parseFloat(allocateAmountRupees);
-    if (isNaN(amt) || amt <= 0) {
-      setMessage({ type: "error", text: "Please enter a valid allocation amount" });
-      return;
-    }
+    if (!selectedInvoiceId || !allocateAmountRupees) return;
 
     setAllocating(true);
     setMessage(null);
-
     try {
-      const res = await api.post(`/payment-allocations/${paymentId}/allocations`, {
+      const amountPaise = BigInt(Math.round(parseFloat(allocateAmountRupees) * 100)).toString();
+      const res = await api.post(`/payments/${paymentId}/allocate`, {
         invoiceId: selectedInvoiceId,
-        allocatedAmountMinor: String(Math.round(amt * 100)),
+        amountMinor: amountPaise,
       });
 
       if (res.success) {
-        setMessage({ type: "success", text: "Payment allocated successfully!" });
+        setMessage({ type: "success", text: "Payment allocated successfully to invoice balance." });
         setShowAllocateModal(false);
+        setSelectedInvoiceId("");
+        setAllocateAmountRupees("");
         loadPayment();
-      } else {
-        setMessage({ type: "error", text: res.error?.message || "Failed to allocate payment" });
       }
     } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Allocation failed" });
+      setMessage({ type: "error", text: err.message || "Failed to allocate payment." });
     } finally {
       setAllocating(false);
     }
@@ -114,323 +101,247 @@ export default function PaymentDetailsPage() {
   if (loading) {
     return (
       <DashboardShell>
-        <div className="p-12 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-brand-600 border-t-transparent" />
-          <p className="text-xs text-slate-400 mt-2 font-medium">Loading transaction details...</p>
+        <div className="py-20 text-center text-[#94A3B8]">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#315CF5] border-t-transparent" />
+          <p className="mt-2 text-[12px]">Loading payment details...</p>
         </div>
       </DashboardShell>
     );
   }
 
-  const unallocatedPaise = BigInt(payment?.unallocatedAmountMinor || 0);
-  const totalAmountPaise = BigInt(payment?.amountMinor || 0);
-  const allocatedPaise = totalAmountPaise > unallocatedPaise ? totalAmountPaise - unallocatedPaise : BigInt(0);
+  if (!payment) {
+    return (
+      <DashboardShell>
+        <div className="bg-[#FDEDED] border border-[#F8C6C6] text-[#D14343] p-6 rounded-[10px] text-[13px]">
+          Payment record not found
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  const unallocatedPaise = BigInt(payment.unallocatedAmountMinor || 0);
 
   return (
     <DashboardShell>
-      <PageHeader
-        title={`Payment: ${payment?.paymentReference}`}
-        description="Transaction receipt, customer association, and settlement allocations"
-      >
+      <div className="mb-4">
         <Link
           href="/admin/payments"
-          className="inline-flex items-center px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition"
+          className="inline-flex items-center text-[12px] font-medium text-[#64748B] hover:text-[#172033] transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
           Back to Payments
         </Link>
+      </div>
+
+      <PageHeader
+        title={payment.paymentReference}
+        description={`Transaction receipt recorded on ${formatDate(payment.paidAt || payment.createdAt)}`}
+        badge={<StatusBadge status={payment.status} />}
+      >
+        {unallocatedPaise > BigInt(0) && openInvoices.length > 0 && (
+          <button
+            onClick={() => setShowAllocateModal(true)}
+            className="inline-flex items-center px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] shadow-xs transition"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Allocate to Invoice
+          </button>
+        )}
       </PageHeader>
 
       {message && (
         <div
-          className={`mb-6 p-3.5 rounded-lg border text-xs flex items-center ${
+          className={`mb-6 p-3 rounded-[8px] text-[12px] font-medium border ${
             message.type === "success"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-red-50 border-red-200 text-red-800"
+              ? "bg-[#EDF7F2] text-[#16865B] border-[#C7E8D8]"
+              : "bg-[#FDEDED] text-[#D14343] border-[#F8C6C6]"
           }`}
         >
-          {message.type === "success" ? (
-            <Check className="w-4 h-4 mr-2 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 mr-2 text-red-600 shrink-0" />
-          )}
-          <span>{message.text}</span>
+          {message.text}
         </div>
       )}
 
-      {/* Top 3 KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-            Total Paid
-          </span>
-          <div className="text-2xl font-bold text-slate-900 font-mono">
-            ₹{(Number(totalAmountPaise) / 100).toLocaleString("en-IN")}
+      {/* Snapshot Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Customer</span>
+            <Building className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          <span className="text-xs text-slate-500 mt-1 inline-flex items-center">
-            Method: <strong className="ml-1 uppercase">{payment?.paymentMethod}</strong>
-          </span>
+          <p className="font-semibold text-[#172033] text-[14px] truncate">
+            {payment.customer?.fullName}
+          </p>
+          <p className="text-[12px] text-[#64748B] truncate mt-0.5">
+            {payment.customer?.companyName || "Individual Customer"}
+          </p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-            Allocated to Invoices
-          </span>
-          <div className="text-2xl font-bold text-emerald-600 font-mono">
-            ₹{(Number(allocatedPaise) / 100).toLocaleString("en-IN")}
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Payment Method</span>
+            <CreditCard className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          <span className="text-xs text-emerald-600 font-medium mt-1 block">
-            {payment?.allocations?.length || 0} invoice allocations
-          </span>
+          <p className="font-semibold text-[#172033] text-[14px] font-mono uppercase">
+            {payment.paymentMethod}
+          </p>
+          <p className="text-[12px] text-[#64748B] mt-0.5">Currency: {payment.currency}</p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-            Unallocated Balance
-          </span>
-          <div className="text-2xl font-bold text-amber-600 font-mono">
-            ₹{(Number(unallocatedPaise) / 100).toLocaleString("en-IN")}
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Total Collected</span>
+            <CreditCard className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
-          {unallocatedPaise > BigInt(0) && payment?.status === PaymentStatus.COMPLETED ? (
-            <button
-              onClick={() => setShowAllocateModal(true)}
-              className="mt-2 inline-flex items-center text-xs font-semibold text-brand-600 hover:text-brand-700 underline"
-            >
-              Allocate to Open Invoice →
-            </button>
-          ) : (
-            <span className="text-xs text-slate-400 mt-1 block">Fully reconciled</span>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left: Metadata */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 pb-2 border-b border-slate-100">
-            Transaction Details
-          </h3>
-
-          <div className="text-xs space-y-3">
-            <div>
-              <span className="text-slate-400 block font-medium">Customer</span>
-              <div className="font-semibold text-slate-900 mt-0.5">{payment?.customer?.fullName}</div>
-              {payment?.customer?.companyName && (
-                <div className="text-slate-500">{payment?.customer?.companyName}</div>
-              )}
-              <div className="text-slate-400">{payment?.customer?.email}</div>
-            </div>
-
-            <div>
-              <span className="text-slate-400 block font-medium">Status</span>
-              <div className="mt-1">
-                {payment?.status === PaymentStatus.COMPLETED ? (
-                  <span className="inline-flex items-center text-emerald-600 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                    Completed
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center text-amber-600 font-semibold">
-                    {payment?.status}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <span className="text-slate-400 block font-medium">Date & Timestamp</span>
-              <div className="text-slate-700 font-mono mt-0.5">
-                {new Date(payment?.paidAt).toLocaleString("en-IN")}
-              </div>
-            </div>
-
-            {payment?.notes && (
-              <div>
-                <span className="text-slate-400 block font-medium">Notes</span>
-                <div className="text-slate-600 p-2.5 bg-slate-50 rounded-lg border border-slate-100 mt-0.5 whitespace-pre-wrap">
-                  {payment.notes}
-                </div>
-              </div>
-            )}
-          </div>
+          <p className="font-semibold text-[#16865B] text-[18px] font-mono">
+            <MoneyDisplay amountMinor={payment.amountMinor} currency={payment.currency} />
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-0.5">Cleared receipt</p>
         </div>
 
-        {/* Right: Allocations Ledger */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Payment Allocations</h3>
-                <p className="text-xs text-slate-500">Invoices settled by this transaction</p>
-              </div>
-              {unallocatedPaise > BigInt(0) && payment?.status === PaymentStatus.COMPLETED && (
-                <button
-                  onClick={() => setShowAllocateModal(true)}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  Allocate
-                </button>
-              )}
-            </div>
-
-            {payment?.allocations?.length === 0 ? (
-              <div className="p-12 text-center text-slate-400">
-                <Receipt className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-xs">This payment has not yet been allocated to any invoice.</p>
-                {unallocatedPaise > BigInt(0) && (
-                  <button
-                    onClick={() => setShowAllocateModal(true)}
-                    className="mt-3 text-xs font-semibold text-brand-600 hover:underline"
-                  >
-                    Click here to allocate to an open invoice
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
-                      <th className="py-2.5 px-3">Invoice Number</th>
-                      <th className="py-2.5 px-3">Invoice Total</th>
-                      <th className="py-2.5 px-3">Allocated Amount</th>
-                      <th className="py-2.5 px-3">Remaining Due</th>
-                      <th className="py-2.5 px-3">Allocated At</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {payment?.allocations?.map((alloc: any) => (
-                      <tr key={alloc.id} className="hover:bg-slate-50/50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-brand-600">
-                          {alloc.invoice?.invoiceNumber || "Invoice"}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-slate-900">
-                          ₹{(Number(alloc.invoice?.totalAmountMinor || 0) / 100).toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-600">
-                          ₹{(Number(alloc.allocatedAmountMinor) / 100).toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-amber-600">
-                          ₹{(Number(alloc.invoice?.balanceDueMinor || 0) / 100).toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500">
-                          {new Date(alloc.createdAt).toLocaleString("en-IN")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        <div className="bg-white p-4 rounded-[10px] border border-[#E5EAF1] shadow-xs">
+          <div className="flex items-center justify-between text-[#64748B] text-[12px] font-medium mb-1">
+            <span>Unallocated Balance</span>
+            <CreditCard className="w-3.5 h-3.5 text-[#94A3B8]" />
           </div>
+          <p className="font-semibold text-[#C58A24] text-[18px] font-mono">
+            <MoneyDisplay amountMinor={payment.unallocatedAmountMinor} currency={payment.currency} />
+          </p>
+          <p className="text-[11px] text-[#64748B] mt-0.5">
+            {unallocatedPaise === BigInt(0) ? "Fully Allocated" : "Credit Available"}
+          </p>
         </div>
       </div>
 
-      {/* Allocation Modal */}
+      {/* Allocations Table */}
+      <div className="bg-white rounded-[10px] border border-[#E5EAF1] shadow-xs overflow-hidden mb-6">
+        <div className="p-4 border-b border-[#E5EAF1]">
+          <h2 className="text-[14px] font-semibold text-[#172033]">Invoice Allocations</h2>
+          <p className="text-[12px] text-[#64748B] mt-0.5">
+            Invoices credited against this payment receipt
+          </p>
+        </div>
+
+        {payment.allocations && payment.allocations.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[13px]">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E5EAF1] text-[11px] font-medium uppercase tracking-wider text-[#64748B]">
+                  <th className="py-2.5 px-4">Invoice #</th>
+                  <th className="py-2.5 px-4">Allocated Date</th>
+                  <th className="py-2.5 px-4 text-right">Allocated Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5EAF1]">
+                {payment.allocations.map((a: any) => (
+                  <tr key={a.id} className="hover:bg-[#F8FAFC]">
+                    <td className="py-3 px-4 font-mono font-medium text-[#172033]">
+                      <Link
+                        href={`/admin/invoices/${a.invoiceId}`}
+                        className="text-[#315CF5] hover:underline"
+                      >
+                        {a.invoice?.invoiceNumber || a.invoiceId}
+                      </Link>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[12px] text-[#64748B]">
+                      {formatDate(a.createdAt)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-medium text-[#16865B]">
+                      <MoneyDisplay amountMinor={a.amountMinor} currency={payment.currency} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-8 text-center text-[#94A3B8] text-[12px]">
+            No invoices have been matched against this payment yet.
+          </div>
+        )}
+      </div>
+
+      {/* Allocate Modal */}
       {showAllocateModal && (
         <div
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowAllocateModal(false);
+            if (e.target === e.currentTarget && !allocating) setShowAllocateModal(false);
           }}
-          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs"
         >
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start justify-between pb-3 mb-2 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 mb-0.5">Allocate Payment</h3>
-                <p className="text-xs text-slate-500">
-                  Allocate funds from unallocated balance (₹{(Number(unallocatedPaise) / 100).toLocaleString("en-IN")}) to an open invoice.
-                </p>
-              </div>
+          <div className="bg-white rounded-[12px] max-w-md w-full p-6 shadow-dropdown border border-[#E5EAF1] animate-fade-in">
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#E5EAF1]">
+              <h3 className="text-[16px] font-semibold text-[#172033]">Allocate Payment</h3>
               <button
                 onClick={() => setShowAllocateModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
-                title="Close"
+                className="text-[#94A3B8] hover:text-[#172033] p-1 rounded-[6px]"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {openInvoices.length === 0 ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-amber-50 text-amber-800 rounded-lg text-xs">
-                  No open or unpaid invoices found for this customer.
-                </div>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowAllocateModal(false)}
-                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
-                  >
-                    Close
-                  </button>
-                </div>
+            <form onSubmit={handleAllocate} className="mt-4 space-y-3.5 text-[13px]">
+              <div>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Target Open Invoice <span className="text-[#D14343]">*</span>
+                </label>
+                <select
+                  required
+                  value={selectedInvoiceId}
+                  onChange={(e) => {
+                    setSelectedInvoiceId(e.target.value);
+                    const inv = openInvoices.find((i) => i.id === e.target.value);
+                    if (inv) {
+                      const balanceRupees = Number(inv.balanceDueMinor) / 100;
+                      const unallocRupees = Number(unallocatedPaise) / 100;
+                      setAllocateAmountRupees(Math.min(balanceRupees, unallocRupees).toString());
+                    }
+                  }}
+                  className="w-full px-3 py-1.5 text-[13px] bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+                >
+                  <option value="">Select an invoice...</option>
+                  {openInvoices.map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.invoiceNumber} (Balance: ₹{(Number(inv.balanceDueMinor) / 100).toLocaleString("en-IN")})
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              <form onSubmit={handleAllocate} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Select Open Invoice
-                  </label>
-                  <select
-                    value={selectedInvoiceId}
-                    onChange={(e) => {
-                      setSelectedInvoiceId(e.target.value);
-                      const inv = openInvoices.find((i) => i.id === e.target.value);
-                      if (inv) {
-                        const unalloc = Number(unallocatedPaise) / 100;
-                        const due = Number(inv.balanceDueMinor || 0) / 100;
-                        setAllocateAmountRupees(String(Math.min(unalloc, due)));
-                      }
-                    }}
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
-                  >
-                    {openInvoices.map((inv) => (
-                      <option key={inv.id} value={inv.id}>
-                        #{inv.invoiceNumber} — Balance Due: ₹{(Number(inv.balanceDueMinor) / 100).toLocaleString("en-IN")}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Amount to Allocate (₹)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                      ₹
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      value={allocateAmountRupees}
-                      onChange={(e) => setAllocateAmountRupees(e.target.value)}
-                      className="w-full pl-7 pr-3 py-2 text-xs font-mono font-bold border border-slate-200 rounded-lg"
-                    />
-                  </div>
-                </div>
+              <div>
+                <label className="block text-[12px] font-medium text-[#172033] mb-1">
+                  Amount to Allocate (INR ₹) <span className="text-[#D14343]">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={allocateAmountRupees}
+                  onChange={(e) => setAllocateAmountRupees(e.target.value)}
+                  className="w-full px-3 py-1.5 text-[13px] font-mono bg-white border border-[#E5EAF1] rounded-[8px] text-[#172033] focus:outline-hidden focus:border-[#315CF5]"
+                />
+                <span className="text-[11px] text-[#64748B] mt-1 block">
+                  Available credit: ₹{(Number(unallocatedPaise) / 100).toLocaleString("en-IN")}
+                </span>
+              </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAllocateModal(false)}
-                    className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={allocating}
-                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
-                  >
-                    {allocating ? "Applying..." : "Confirm Allocation"}
-                  </button>
-                </div>
-              </form>
-            )}
+              <div className="flex justify-end space-x-2 pt-4 border-t border-[#E5EAF1]">
+                <button
+                  type="button"
+                  onClick={() => setShowAllocateModal(false)}
+                  disabled={allocating}
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-[#172033] bg-white border border-[#E5EAF1] hover:bg-[#F8FAFC] rounded-[8px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={allocating}
+                  className="px-3.5 py-1.5 text-[13px] font-medium text-white bg-[#315CF5] hover:bg-[#2549D8] rounded-[8px] shadow-xs"
+                >
+                  {allocating ? "Allocating..." : "Confirm Allocation"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
