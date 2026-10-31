@@ -1,0 +1,31 @@
+{
+  "name": "sms-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND\" -c \"cyan.bold,green.bold\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm run dev --workspace=@sms/frontend",
+    "dev:backend": "npm run dev --workspace=@sms/backend",
+    "build": "npm run build --workspace=@sms/shared && npm run build --workspace=@sms/backend && npm run build --workspace=@sms/frontend",
+    "lint": "npm run lint --workspace=@sms/frontend",
+    "test": "npm run test --workspace=@sms/backend",
+    "db:migrate": "npx prisma migrate dev --schema=database/schema.prisma",
+    "db:generate": "npx prisma generate --schema=database/schema.prisma",
+    "db:push": "npx prisma db push --schema=database/schema.prisma",
+    "db:seed": "npx tsx database/seed/seed.ts",
+    "db:studio": "npx prisma studio --schema=database/schema.prisma"
+  },
+  "devDependencies": {
+    "@prisma/client": "5.22.0",
+    "concurrently": "9.1.0",
+    "dotenv": "16.4.5",
+    "prisma": "5.22.0",
+    "tsx": "4.19.2",
+    "typescript": "5.6.3"
+  }
+}

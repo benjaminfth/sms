@@ -1,0 +1,670 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum ProductType {
+  GOODS
+  SERVICE
+}
+
+enum PriceAdjustmentType {
+  SURCHARGE
+  DISCOUNT
+}
+
+enum BillingInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  VOID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  UPI
+  CASH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum BillingRunStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum BillingAttemptStatus {
+  SUCCESS
+  FAILURE
+}
+
+// ==========================================
+// AUTHENTICATION
+// ==========================================
+
+model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String
+  fullName            String
+  phone               String?
+  role                Role                 @default(CUSTOMER)
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now()) @db.Timestamptz
+  updatedAt           DateTime             @updatedAt @db.Timestamptz
+
+  customer            Customer?
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id                String    @id @default(uuid())
+  tokenHash         String    @unique
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isRevoked         Boolean   @default(false)
+  expiresAt         DateTime  @db.Timestamptz
+  replacedByTokenId String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isUsed    Boolean  @default(false)
+  expiresAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+// ==========================================
+// CUSTOMERS
+// ==========================================
+
+model Customer {
+  id                  String         @id @default(uuid())
+  userId              String?        @unique
+  user                User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email               String
+  fullName            String
+  companyName         String?
+  phone               String?
+  billingAddressLine1 String?
+  billingAddressLine2 String?
+  city                String?
+  state               String?
+  postalCode          String?
+  country             String?        @default("India")
+  currency            String         @default("INR")
+  gstOrTaxId          String?
+  notes               String?
+  isActive            Boolean        @default(true)
+  createdAt           DateTime       @default(now()) @db.Timestamptz
+  updatedAt           DateTime       @updatedAt @db.Timestamptz
+
+  quotations          Quotation[]
+  subscriptions       Subscription[]
+  invoices            Invoice[]
+  payments            Payment[]
+  notifications       Notification[]
+
+  @@index([email])
+  @@index([userId])
+  @@index([isActive])
+  @@map("customers")
+}
+
+// ==========================================
+// CATALOG
+// ==========================================
+
+model Product {
+  id                    String              @id @default(uuid())
+  sku                   String              @unique
+  name                  String
+  description           String?
+  productType           ProductType         @default(SERVICE)
+  baseSellingPriceMinor BigInt              @db.BigInt
+  costPriceMinor        BigInt              @default(0) @db.BigInt
+  currency              String              @default("INR")
+  notes                 String?
+  isActive              Boolean             @default(true)
+  isArchived            Boolean             @default(false)
+  createdAt             DateTime            @default(now()) @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @db.Timestamptz
+
+  variants              ProductVariant[]
+  productTaxes          ProductTax[]
+  planItems             PlanItem[]
+  quotationItems        QuotationItem[]
+  subscriptionItems     SubscriptionItem[]
+  invoiceItems          InvoiceItem[]
+  discountProducts      DiscountProduct[]
+
+  @@index([sku])
+  @@index([isActive, isArchived])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                   String              @id @default(uuid())
+  productId            String
+  product              Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku                  String              @unique
+  name                 String
+  priceAdjustmentType  PriceAdjustmentType @default(SURCHARGE)
+  priceAdjustmentMinor BigInt              @default(0) @db.BigInt
+  isActive             Boolean             @default(true)
+  isArchived           Boolean             @default(false)
+  createdAt            DateTime            @default(now()) @db.Timestamptz
+  updatedAt            DateTime            @updatedAt @db.Timestamptz
+
+  planItems            PlanItem[]
+  quotationItems       QuotationItem[]
+  subscriptionItems    SubscriptionItem[]
+
+  @@index([productId])
+  @@index([sku])
+  @@index([isActive, isArchived])
+  @@map("product_variants")
+}
+
+model Tax {
+  id              String       @id @default(uuid())
+  name            String
+  code            String       @unique
+  rateBasisPoints Int          @default(0) // e.g. 1800 for 18.00%
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now()) @db.Timestamptz
+  updatedAt       DateTime     @updatedAt @db.Timestamptz
+
+  productTaxes    ProductTax[]
+
+  @@index([code])
+  @@map("taxes")
+}
+
+model ProductTax {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  taxId     String
+  tax       Tax      @relation(fields: [taxId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@unique([productId, taxId])
+  @@map("product_taxes")
+}
+
+// ==========================================
+// PLANS
+// ==========================================
+
+model Plan {
+  id            String         @id @default(uuid())
+  code          String         @unique
+  name          String
+  description   String?
+  startDate     DateTime?      @db.Timestamptz
+  endDate       DateTime?      @db.Timestamptz
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now()) @db.Timestamptz
+  updatedAt     DateTime       @updatedAt @db.Timestamptz
+
+  prices        PlanPrice[]
+  items         PlanItem[]
+  subscriptions Subscription[]
+
+  @@index([code])
+  @@index([isActive])
+  @@map("plans")
+}
+
+model PlanPrice {
+  id              String          @id @default(uuid())
+  planId          String
+  plan            Plan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  currency        String          @default("INR")
+  billingInterval BillingInterval @default(MONTHLY)
+  intervalCount   Int             @default(1)
+  amountMinor     BigInt          @db.BigInt
+  setupFeeMinor   BigInt          @default(0) @db.BigInt
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now()) @db.Timestamptz
+  updatedAt       DateTime        @updatedAt @db.Timestamptz
+
+  @@index([planId])
+  @@index([planId, isActive])
+  @@map("plan_prices")
+}
+
+model PlanItem {
+  id               String          @id @default(uuid())
+  planId           String
+  plan             Plan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productVariantId String?
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+  quantity         Decimal         @default(1.000) @db.Decimal(12, 3)
+  createdAt        DateTime        @default(now()) @db.Timestamptz
+  updatedAt        DateTime        @updatedAt @db.Timestamptz
+
+  @@index([planId])
+  @@index([productId])
+  @@map("plan_items")
+}
+
+// ==========================================
+// QUOTATIONS
+// ==========================================
+
+model QuotationTemplate {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now()) @db.Timestamptz
+  updatedAt   DateTime    @updatedAt @db.Timestamptz
+
+  quotations  Quotation[]
+
+  @@map("quotation_templates")
+}
+
+model Quotation {
+  id                   String                @id @default(uuid())
+  quotationNumber      String                @unique
+  customerId           String
+  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  templateId           String?
+  template             QuotationTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  status               QuotationStatus       @default(DRAFT)
+  totalAmountMinor     BigInt                @default(0) @db.BigInt
+  currency             String                @default("INR")
+  validUntil           DateTime              @db.Timestamptz
+  notes                String?
+  createdAt            DateTime              @default(now()) @db.Timestamptz
+  updatedAt            DateTime              @updatedAt @db.Timestamptz
+
+  items                QuotationItem[]
+  subscription         Subscription?
+  discountApplications DiscountApplication[]
+
+  @@index([customerId])
+  @@index([quotationNumber])
+  @@index([status])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id               String          @id @default(uuid())
+  quotationId      String
+  quotation        Quotation       @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productVariantId String?
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+  description      String?
+  quantity         Decimal         @default(1.000) @db.Decimal(12, 3)
+  unitPriceMinor   BigInt          @db.BigInt
+  totalAmountMinor BigInt          @db.BigInt
+  createdAt        DateTime        @default(now()) @db.Timestamptz
+
+  @@index([quotationId])
+  @@index([productId])
+  @@map("quotation_items")
+}
+
+// ==========================================
+// SUBSCRIPTIONS
+// ==========================================
+
+model Subscription {
+  id                   String                @id @default(uuid())
+  subscriptionNumber   String                @unique
+  customerId           String
+  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  planId               String?
+  plan                 Plan?                 @relation(fields: [planId], references: [id], onDelete: SetNull)
+  quotationId          String?               @unique
+  quotation            Quotation?            @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  status               SubscriptionStatus    @default(ACTIVE)
+  billingInterval      BillingInterval       @default(MONTHLY)
+  intervalCount        Int                   @default(1)
+  currency             String                @default("INR")
+  currentPeriodStart   DateTime              @db.Timestamptz
+  currentPeriodEnd     DateTime              @db.Timestamptz
+  nextBillingDate      DateTime              @db.Timestamptz
+  cancelledAt          DateTime?             @db.Timestamptz
+  cancellationReason   String?
+  createdAt            DateTime              @default(now()) @db.Timestamptz
+  updatedAt            DateTime              @updatedAt @db.Timestamptz
+
+  items                SubscriptionItem[]
+  invoices             Invoice[]
+  discountApplications DiscountApplication[]
+  billingAttempts      BillingAttempt[]
+
+  @@index([customerId])
+  @@index([subscriptionNumber])
+  @@index([status, nextBillingDate])
+  @@map("subscriptions")
+}
+
+model SubscriptionItem {
+  id               String          @id @default(uuid())
+  subscriptionId   String
+  subscription     Subscription    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productVariantId String?
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+  quantity         Decimal         @default(1.000) @db.Decimal(12, 3)
+  unitPriceMinor   BigInt          @db.BigInt
+  createdAt        DateTime        @default(now()) @db.Timestamptz
+  updatedAt        DateTime        @updatedAt @db.Timestamptz
+
+  @@index([subscriptionId])
+  @@index([productId])
+  @@map("subscription_items")
+}
+
+// ==========================================
+// DISCOUNTS
+// ==========================================
+
+model Discount {
+  id                     String                @id @default(uuid())
+  code                   String                @unique
+  name                   String
+  discountType           DiscountType          @default(PERCENTAGE)
+  valueMinorOrBasisPoints BigInt               @db.BigInt
+  startDate              DateTime?             @db.Timestamptz
+  endDate                DateTime?             @db.Timestamptz
+  maxRedemptions         Int?
+  currentRedemptions     Int                   @default(0)
+  isActive               Boolean               @default(true)
+  createdAt              DateTime              @default(now()) @db.Timestamptz
+  updatedAt              DateTime              @updatedAt @db.Timestamptz
+
+  discountProducts       DiscountProduct[]
+  discountApplications   DiscountApplication[]
+
+  @@index([code])
+  @@index([isActive])
+  @@map("discounts")
+}
+
+model DiscountProduct {
+  id         String   @id @default(uuid())
+  discountId String
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  @@unique([discountId, productId])
+  @@map("discount_products")
+}
+
+model DiscountApplication {
+  id                 String        @id @default(uuid())
+  discountId         String
+  discount           Discount      @relation(fields: [discountId], references: [id], onDelete: Restrict)
+  quotationId        String?
+  quotation          Quotation?    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  subscriptionId     String?
+  subscription       Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  invoiceId          String?
+  invoice            Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amountDeductedMinor BigInt       @db.BigInt
+  appliedAt          DateTime      @default(now()) @db.Timestamptz
+
+  @@index([discountId])
+  @@index([quotationId])
+  @@index([subscriptionId])
+  @@index([invoiceId])
+  @@map("discount_applications")
+}
+
+// ==========================================
+// INVOICES
+// ==========================================
+
+model Invoice {
+  id                   String                @id @default(uuid())
+  invoiceNumber        String                @unique
+  subscriptionId       String?
+  subscription         Subscription?         @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  customerId           String
+  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status               InvoiceStatus         @default(ISSUED)
+  currency             String                @default("INR")
+  subtotalMinor        BigInt                @default(0) @db.BigInt
+  taxAmountMinor       BigInt                @default(0) @db.BigInt
+  discountAmountMinor  BigInt                @default(0) @db.BigInt
+  totalAmountMinor     BigInt                @default(0) @db.BigInt
+  amountPaidMinor      BigInt                @default(0) @db.BigInt
+  balanceDueMinor      BigInt                @default(0) @db.BigInt
+  dueDate              DateTime              @db.Timestamptz
+  billingPeriodStart   DateTime?             @db.Timestamptz
+  billingPeriodEnd     DateTime?             @db.Timestamptz
+  issuedAt             DateTime?             @default(now()) @db.Timestamptz
+  paidAt               DateTime?             @db.Timestamptz
+  createdAt            DateTime              @default(now()) @db.Timestamptz
+  updatedAt            DateTime              @updatedAt @db.Timestamptz
+
+  items                InvoiceItem[]
+  paymentAllocations   PaymentAllocation[]
+  discountApplications DiscountApplication[]
+  billingAttempts      BillingAttempt[]
+
+  @@index([customerId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([status, dueDate])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id               String   @id @default(uuid())
+  invoiceId        String
+  invoice          Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId        String?
+  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description      String
+  quantity         Decimal  @default(1.000) @db.Decimal(12, 3)
+  unitPriceMinor   BigInt   @db.BigInt
+  taxAmountMinor   BigInt   @default(0) @db.BigInt
+  totalAmountMinor BigInt   @db.BigInt
+  createdAt        DateTime @default(now()) @db.Timestamptz
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_items")
+}
+
+// ==========================================
+// PAYMENTS
+// ==========================================
+
+model Payment {
+  id               String              @id @default(uuid())
+  paymentReference String              @unique
+  customerId       String
+  customer         Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  amountMinor      BigInt              @db.BigInt
+  currency         String              @default("INR")
+  paymentMethod    PaymentMethod       @default(CARD)
+  status           PaymentStatus       @default(COMPLETED)
+  notes            String?
+  paidAt           DateTime            @default(now()) @db.Timestamptz
+  createdAt        DateTime            @default(now()) @db.Timestamptz
+  updatedAt        DateTime            @updatedAt @db.Timestamptz
+
+  allocations      PaymentAllocation[]
+
+  @@index([customerId])
+  @@index([paymentReference])
+  @@index([status])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id                   String   @id @default(uuid())
+  paymentId            String
+  payment              Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId            String
+  invoice              Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  allocatedAmountMinor BigInt   @db.BigInt
+  createdAt            DateTime @default(now()) @db.Timestamptz
+
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("payment_allocations")
+}
+
+// ==========================================
+// SYSTEM: AUDIT, NOTIFICATIONS, BILLING RUNS
+// ==========================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  actorUser   User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String
+  entityId    String
+  beforeData  Json?
+  afterData   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model BillingRun {
+  id                          String                @id @default(uuid())
+  runDate                     DateTime              @default(now()) @db.Timestamptz
+  status                      BillingRunStatus      @default(PENDING)
+  targetDate                  DateTime              @db.Timestamptz
+  processedSubscriptionsCount Int                   @default(0)
+  successfulInvoicesCount     Int                   @default(0)
+  failedInvoicesCount         Int                   @default(0)
+  errorDetails                String?
+  createdAt                   DateTime              @default(now()) @db.Timestamptz
+  updatedAt                   DateTime              @updatedAt @db.Timestamptz
+
+  attempts                    BillingAttempt[]
+
+  @@index([status])
+  @@index([targetDate])
+  @@map("billing_runs")
+}
+
+model BillingAttempt {
+  id             String               @id @default(uuid())
+  billingRunId   String
+  billingRun     BillingRun           @relation(fields: [billingRunId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  subscription   Subscription         @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  status         BillingAttemptStatus @default(SUCCESS)
+  invoiceId      String?
+  invoice        Invoice?             @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  errorMessage   String?
+  attemptedAt    DateTime             @default(now()) @db.Timestamptz
+
+  @@index([billingRunId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("billing_attempts")
+}
