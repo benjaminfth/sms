@@ -18,6 +18,8 @@ import {
   ShieldAlert,
   Settings,
   Sparkles,
+  Landmark,
+  Scale,
 } from "lucide-react";
 
 export function AppSidebar() {
@@ -29,7 +31,15 @@ export function AppSidebar() {
 
   const basePath = isAdmin ? "/admin" : "/staff";
 
-  const navItems = [
+  interface NavItem {
+    name: string;
+    href: string;
+    icon: any;
+    adminOnly?: boolean;
+    dev2?: boolean;
+  }
+
+  const navItems: NavItem[] = [
     { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard, adminOnly: true },
     { name: "Customers", href: `${basePath}/customers`, icon: Users },
     { name: "Products", href: `${basePath}/products`, icon: Package },
@@ -37,8 +47,10 @@ export function AppSidebar() {
     { name: "Quotations", href: "/admin/quotations", icon: FileText, dev2: true },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: Repeat, dev2: true },
     { name: "Invoices", href: "/admin/invoices", icon: Receipt, dev2: true },
-    { name: "Payments", href: "/admin/payments", icon: CreditCard, dev3: true },
-    { name: "Discounts", href: "/admin/discounts", icon: Percent, dev3: true },
+    { name: "Payments", href: "/admin/payments", icon: CreditCard },
+    { name: "Reconciliation", href: "/admin/reconciliation", icon: Scale, adminOnly: true },
+    { name: "Taxes", href: "/admin/taxes", icon: Landmark, adminOnly: true },
+    { name: "Discounts", href: "/admin/discounts", icon: Percent },
     { name: "Staff Management", href: "/admin/staff", icon: ShieldAlert, adminOnly: true },
     { name: "Settings", href: "/admin/settings", icon: Settings, adminOnly: true },
   ];
@@ -87,11 +99,6 @@ export function AppSidebar() {
               {item.dev2 && (
                 <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
                   Dev 2
-                </span>
-              )}
-              {item.dev3 && (
-                <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
-                  Dev 3
                 </span>
               )}
             </Link>

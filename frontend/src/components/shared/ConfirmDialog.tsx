@@ -29,7 +29,12 @@ export function ConfirmDialog({
   const isDanger = variant === "danger";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !loading) onCancel();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+    >
       <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
