@@ -9,6 +9,8 @@ import {
   PaymentMethod,
   PaymentStatus,
   DiscountType,
+  BillingRunStatus,
+  BillingAttemptStatus,
 } from "../enums";
 
 export interface MoneyDTO {
@@ -185,6 +187,31 @@ export interface ProductPricingResult {
   currency: string;
 }
 
+// Quotation Template DTO
+export interface QuotationTemplateDTO {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Quotation Item DTO
+export interface QuotationItemDTO {
+  id: string;
+  quotationId: string;
+  productId: string;
+  productVariantId?: string | null;
+  description?: string | null;
+  quantity: string;
+  unitPriceMinor: string;
+  totalAmountMinor: string;
+  createdAt: string;
+  product?: ProductDTO;
+  productVariant?: ProductVariantDTO | null;
+}
+
 // Quotation DTO
 export interface QuotationDTO {
   id: string;
@@ -198,6 +225,27 @@ export interface QuotationDTO {
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface QuotationWithDetailsDTO extends QuotationDTO {
+  customer: CustomerDTO;
+  template?: QuotationTemplateDTO | null;
+  items: QuotationItemDTO[];
+  subscription?: SubscriptionDTO | null;
+}
+
+// Subscription Item DTO
+export interface SubscriptionItemDTO {
+  id: string;
+  subscriptionId: string;
+  productId: string;
+  productVariantId?: string | null;
+  quantity: string;
+  unitPriceMinor: string;
+  createdAt: string;
+  updatedAt: string;
+  product?: ProductDTO;
+  productVariant?: ProductVariantDTO | null;
 }
 
 // Subscription DTO
@@ -218,6 +266,28 @@ export interface SubscriptionDTO {
   cancellationReason?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SubscriptionWithDetailsDTO extends SubscriptionDTO {
+  customer: CustomerDTO;
+  plan?: PlanDTO | null;
+  quotation?: QuotationDTO | null;
+  items: SubscriptionItemDTO[];
+  invoices?: InvoiceDTO[];
+}
+
+// Invoice Item DTO
+export interface InvoiceItemDTO {
+  id: string;
+  invoiceId: string;
+  productId?: string | null;
+  description: string;
+  quantity: string;
+  unitPriceMinor: string;
+  taxAmountMinor: string;
+  totalAmountMinor: string;
+  createdAt: string;
+  product?: ProductDTO | null;
 }
 
 // Invoice DTO
@@ -241,6 +311,23 @@ export interface InvoiceDTO {
   paidAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface InvoiceWithDetailsDTO extends InvoiceDTO {
+  customer: CustomerDTO;
+  subscription?: SubscriptionDTO | null;
+  items: InvoiceItemDTO[];
+  paymentAllocations?: PaymentAllocationDTO[];
+}
+
+// Payment Allocation DTO
+export interface PaymentAllocationDTO {
+  id: string;
+  paymentId: string;
+  invoiceId: string;
+  allocatedAmountMinor: string;
+  createdAt: string;
+  payment?: PaymentDTO;
 }
 
 // Payment DTO
@@ -274,3 +361,65 @@ export interface DiscountDTO {
   updatedAt: string;
 }
 
+// Billing Run & Attempt DTOs
+export interface BillingRunDTO {
+  id: string;
+  runDate: string;
+  status: BillingRunStatus;
+  targetDate: string;
+  processedSubscriptionsCount: number;
+  successfulInvoicesCount: number;
+  failedInvoicesCount: number;
+  errorDetails?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BillingAttemptDTO {
+  id: string;
+  billingRunId: string;
+  subscriptionId: string;
+  status: BillingAttemptStatus;
+  invoiceId?: string | null;
+  errorMessage?: string | null;
+  attemptedAt: string;
+  subscription?: SubscriptionDTO;
+  invoice?: InvoiceDTO | null;
+}
+
+// Developer 3 Pricing & Tax Contract Interfaces
+export interface LineItemCalculationInput {
+  productId?: string | null;
+  productVariantId?: string | null;
+  description: string;
+  quantity: string | number;
+  unitPriceMinor: string | bigint | number;
+}
+
+export interface CalculationInput {
+  customerId: string;
+  currency?: string;
+  items: LineItemCalculationInput[];
+  discountCode?: string | null;
+  billingPeriodStart?: Date | null;
+  billingPeriodEnd?: Date | null;
+}
+
+export interface LineItemCalculationResult {
+  productId?: string | null;
+  productVariantId?: string | null;
+  description: string;
+  quantity: string;
+  unitPriceMinor: string;
+  taxAmountMinor: string;
+  totalAmountMinor: string;
+}
+
+export interface CalculationBreakdown {
+  subtotalMinor: string;
+  taxAmountMinor: string;
+  discountAmountMinor: string;
+  totalAmountMinor: string;
+  items: LineItemCalculationResult[];
+  appliedDiscountId?: string | null;
+}
