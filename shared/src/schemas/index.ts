@@ -185,3 +185,92 @@ export const paginationQuerySchema = z.object({
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
+
+
+// Quotation Template schemas
+export const createQuotationTemplateSchema = z.object({
+  name: z.string().min(2, "Template name must be at least 2 characters").trim(),
+  description: z.string().optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+
+export const updateQuotationTemplateSchema = z.object({
+  name: z.string().min(2).optional(),
+  description: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+// Quotation schemas
+export const quotationItemInputSchema = z.object({
+  productId: z.string().uuid("Product ID must be a valid UUID"),
+  productVariantId: z.string().uuid("Variant ID must be a valid UUID").optional().nullable(),
+  description: z.string().optional().nullable(),
+  quantity: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val))
+    .default("1.000"),
+  unitPriceMinor: minorAmountSchema.optional(),
+});
+
+export const createQuotationSchema = z.object({
+  customerId: z.string().uuid("Customer ID must be a valid UUID"),
+  templateId: z.string().uuid("Template ID must be a valid UUID").optional().nullable(),
+  validUntil: z.string().datetime({ offset: true }),
+  notes: z.string().optional().nullable(),
+  currency: z.string().default(DEFAULT_CURRENCY),
+  items: z.array(quotationItemInputSchema).min(1, "Quotation must have at least one line item"),
+});
+
+export const updateQuotationSchema = z.object({
+  templateId: z.string().uuid().optional().nullable(),
+  validUntil: z.string().datetime({ offset: true }).optional(),
+  notes: z.string().optional().nullable(),
+  items: z.array(quotationItemInputSchema).min(1).optional(),
+});
+
+export const convertQuotationSchema = z.object({
+  billingInterval: z.nativeEnum(BillingInterval).default(BillingInterval.MONTHLY),
+  intervalCount: z.number().int().positive().default(1),
+  startDate: z.string().datetime({ offset: true }).optional(),
+});
+
+export const rejectQuotationSchema = z.object({
+  reason: z.string().optional(),
+});
+
+// Subscription schemas
+export const subscriptionItemInputSchema = z.object({
+  productId: z.string().uuid("Product ID must be a valid UUID"),
+  productVariantId: z.string().uuid("Variant ID must be a valid UUID").optional().nullable(),
+  quantity: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val))
+    .default("1.000"),
+  unitPriceMinor: minorAmountSchema.optional(),
+});
+
+export const createSubscriptionSchema = z.object({
+  customerId: z.string().uuid("Customer ID must be a valid UUID"),
+  planId: z.string().uuid("Plan ID must be a valid UUID").optional().nullable(),
+  planPriceId: z.string().uuid("Plan Price ID must be a valid UUID").optional().nullable(),
+  billingInterval: z.nativeEnum(BillingInterval).default(BillingInterval.MONTHLY),
+  intervalCount: z.number().int().positive().default(1),
+  currency: z.string().default(DEFAULT_CURRENCY),
+  startDate: z.string().datetime({ offset: true }).optional(),
+  items: z.array(subscriptionItemInputSchema).optional(),
+});
+
+export const cancelSubscriptionSchema = z.object({
+  reason: z.string().min(2, "Cancellation reason is required").trim(),
+  immediate: z.boolean().default(true),
+});
+
+// Billing schemas
+export const runBillingSchema = z.object({
+  targetDate: z.string().datetime({ offset: true }).optional(),
+});
+
+// Invoice schemas
+export const voidInvoiceSchema = z.object({
+  reason: z.string().optional(),
+});

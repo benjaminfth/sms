@@ -22,3 +22,7 @@ export function validate(schema: ZodSchema, location: RequestLocation = "body") 
     }
   };
 }
+
+export const validateBody = (schema: ZodSchema) => validate(schema, "body");
+export const validateQuery = (schema: ZodSchema) => validate(schema, "query");
+export const validateParams = (schema: ZodSchema) => validate(schema, "params");
