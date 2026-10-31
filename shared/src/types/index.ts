@@ -624,3 +624,165 @@ export interface CalculationBreakdown {
   items: LineItemCalculationResult[];
   appliedDiscountId?: string | null;
 }
+
+// ==========================================
+// SETTINGS DTOS
+// ==========================================
+
+export interface GeneralSettingsDTO {
+  organizationName: string;
+  displayName: string;
+  supportEmail: string;
+  supportPhone: string;
+  websiteUrl: string;
+  defaultCurrency: string;
+  defaultTimeZone: string;
+  defaultLanguage: string;
+  dateFormat: string;
+  numberFormat: string;
+}
+
+export interface CompanyProfileDTO {
+  legalCompanyName: string;
+  displayName: string;
+  companyLogo: string | null;
+  businessEmail: string;
+  phoneNumber: string;
+  website: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  taxRegistrationNumber: string; // GSTIN
+  companyRegistrationNumber: string; // CIN
+}
+
+export interface BankAccountDetailsDTO {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  ifscCode: string;
+  branch: string;
+}
+
+export interface BillingPaymentsSettingsDTO {
+  defaultCurrency: string;
+  defaultPaymentTerms: string;
+  defaultPaymentMethod: string;
+  allowPartialPayments: boolean;
+  allowMultiplePaymentsPerInvoice: boolean;
+  autoMarkPaidWhenFullyPaid: boolean;
+  paymentInstructions: string;
+  bankAccountDetails: BankAccountDetailsDTO;
+}
+
+export interface InvoiceSettingsDTO {
+  invoicePrefix: string;
+  startingInvoiceNumber: number;
+  nextInvoiceNumber: number;
+  numberFormat: string;
+  defaultDueDays: number;
+  defaultInvoiceFooter: string;
+  defaultInvoiceNotes: string;
+  displayCompanyLogo: boolean;
+  displayTaxBreakdown: boolean;
+  displayCustomerAddress: boolean;
+  displayPaymentInstructions: boolean;
+  autoGenerateRecurringInvoices: boolean;
+  autoSendInvoiceEmail: boolean;
+  autoMarkOverdueInvoices: boolean;
+}
+
+export interface SubscriptionSettingsDTO {
+  defaultSubscriptionStatus: string;
+  defaultBillingCycle: string;
+  defaultTrialPeriodDays: number;
+  allowSubscriptionPause: boolean;
+  allowSubscriptionResume: boolean;
+  allowEarlyCancellation: boolean;
+  allowSubscriptionRenewal: boolean;
+  autoRenewEligibleSubscriptions: boolean;
+  sendRenewalReminder: boolean;
+  renewalReminderDaysBefore: number;
+  sendExpiryReminder: boolean;
+  expiryReminderDaysBefore: number;
+}
+
+export interface NotificationSettingsDTO {
+  customerWelcomeEmail: boolean;
+  customerPasswordResetEmail: boolean;
+  customerQuotationCreated: boolean;
+  customerQuotationAccepted: boolean;
+  customerQuotationRejected: boolean;
+  customerSubscriptionActivated: boolean;
+  customerSubscriptionPaused: boolean;
+  customerSubscriptionResumed: boolean;
+  customerSubscriptionCancelled: boolean;
+  customerSubscriptionRenewed: boolean;
+  customerInvoiceGenerated: boolean;
+  customerInvoiceDueReminder: boolean;
+  customerPaymentReceived: boolean;
+  customerPaymentFailed: boolean;
+  customerSubscriptionExpiryReminder: boolean;
+  adminNewCustomerRegistration: boolean;
+  adminNewSubscriptionCreated: boolean;
+  adminPaymentReceived: boolean;
+  adminPaymentFailed: boolean;
+  adminInvoiceOverdue: boolean;
+  adminBillingGenerationFailed: boolean;
+  adminNotificationEmail: string;
+  senderDisplayName: string;
+  senderEmailAddress: string;
+  emailProviderStatus: "ACTIVE" | "CONFIGURED" | "NOT_CONFIGURED";
+}
+
+export interface SecuritySettingsDTO {
+  minPasswordLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireSpecialCharacter: boolean;
+  sessionExpirationDurationMinutes: number;
+  maxFailedLoginAttempts: number;
+  accountLockoutDurationMinutes: number;
+  requireEmailVerification: boolean;
+}
+
+export interface RegionalPreferencesDTO {
+  defaultCurrency: string;
+  timeZone: string;
+  dateFormat: string;
+  timeFormat: "12_HOUR" | "24_HOUR";
+  numberFormat: "en-IN" | "en-US" | "de-DE";
+  decimalPrecision: number;
+  taxDisplayFormat: "EXCLUSIVE" | "INCLUSIVE";
+}
+
+export interface SystemInformationDTO {
+  appName: string;
+  appVersion: string;
+  environment: string;
+  backendStatus: string;
+  databaseConnectionStatus: string;
+  currentServerTime: string;
+  lastDatabaseMigration: string;
+  totalRegisteredUsers: number;
+  totalCustomers: number;
+  totalProducts: number;
+  totalSubscriptions: number;
+  totalInvoices: number;
+}
+
+export interface AllSettingsDTO {
+  general: GeneralSettingsDTO;
+  company: CompanyProfileDTO;
+  billing: BillingPaymentsSettingsDTO;
+  invoices: InvoiceSettingsDTO;
+  subscriptions: SubscriptionSettingsDTO;
+  notifications: NotificationSettingsDTO;
+  security: SecuritySettingsDTO;
+  regional: RegionalPreferencesDTO;
+  system: SystemInformationDTO;
+}
+

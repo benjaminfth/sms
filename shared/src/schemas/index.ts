@@ -511,3 +511,165 @@ export const createInvoiceSchema = z.object({
 export const voidInvoiceSchema = z.object({
   reason: z.string().optional().nullable(),
 });
+
+// ==========================================
+// SETTINGS SCHEMAS
+// ==========================================
+
+export const generalSettingsSchema = z.object({
+  organizationName: z.string().min(1, "Organization Name is required"),
+  displayName: z.string().min(1, "Display Name is required"),
+  supportEmail: z.string().email("Valid support email is required"),
+  supportPhone: z.string().min(1, "Support Phone Number is required"),
+  websiteUrl: z.string().url("Valid website URL is required"),
+  defaultCurrency: z.string().min(3).max(3).default("INR"),
+  defaultTimeZone: z.string().min(1).default("Asia/Kolkata"),
+  defaultLanguage: z.string().min(2).default("en"),
+  dateFormat: z.string().min(1).default("DD/MM/YYYY"),
+  numberFormat: z.string().min(1).default("en-IN"),
+});
+
+export const companyProfileSchema = z.object({
+  legalCompanyName: z.string().min(1, "Legal Company Name is required"),
+  displayName: z.string().min(1, "Display Name is required"),
+  companyLogo: z.string().nullable().optional(),
+  businessEmail: z.string().email("Valid business email is required"),
+  phoneNumber: z.string().min(1, "Phone Number is required"),
+  website: z.string().url("Valid website URL is required"),
+  addressLine1: z.string().min(1, "Address Line 1 is required"),
+  addressLine2: z.string().optional().default(""),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  postalCode: z.string().min(1, "Postal Code is required"),
+  country: z.string().min(1, "Country is required"),
+  taxRegistrationNumber: z.string().min(1, "Tax Registration Number (GSTIN) is required"),
+  companyRegistrationNumber: z.string().min(1, "Company Registration Number (CIN) is required"),
+});
+
+export const bankAccountDetailsSchema = z.object({
+  bankName: z.string().optional().default(""),
+  accountNumber: z.string().optional().default(""),
+  accountName: z.string().optional().default(""),
+  ifscCode: z.string().optional().default(""),
+  branch: z.string().optional().default(""),
+});
+
+export const billingPaymentsSettingsSchema = z.object({
+  defaultCurrency: z.string().min(3).max(3).default("INR"),
+  defaultPaymentTerms: z.enum([
+    "DUE_IMMEDIATELY",
+    "7_DAYS",
+    "15_DAYS",
+    "30_DAYS",
+    "45_DAYS",
+    "60_DAYS",
+  ]).default("15_DAYS"),
+  defaultPaymentMethod: z.enum([
+    "UPI",
+    "BANK_TRANSFER",
+    "CARD",
+    "CASH",
+    "OTHER",
+  ]).default("UPI"),
+  allowPartialPayments: z.boolean().default(true),
+  allowMultiplePaymentsPerInvoice: z.boolean().default(true),
+  autoMarkPaidWhenFullyPaid: z.boolean().default(true),
+  paymentInstructions: z.string().optional().default(""),
+  bankAccountDetails: bankAccountDetailsSchema.default({
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    ifscCode: "",
+    branch: "",
+  }),
+});
+
+export const invoiceSettingsSchema = z.object({
+  invoicePrefix: z.string().min(1, "Prefix is required").max(10).default("INV"),
+  startingInvoiceNumber: z.number().int().positive().default(1),
+  nextInvoiceNumber: z.number().int().positive().optional().default(1),
+  numberFormat: z.string().min(1).default("INV-YYYY-XXXX"),
+  defaultDueDays: z.number().int().min(0).max(365).default(15),
+  defaultInvoiceFooter: z.string().optional().default(""),
+  defaultInvoiceNotes: z.string().optional().default(""),
+  displayCompanyLogo: z.boolean().default(true),
+  displayTaxBreakdown: z.boolean().default(true),
+  displayCustomerAddress: z.boolean().default(true),
+  displayPaymentInstructions: z.boolean().default(true),
+  autoGenerateRecurringInvoices: z.boolean().default(true),
+  autoSendInvoiceEmail: z.boolean().default(true),
+  autoMarkOverdueInvoices: z.boolean().default(true),
+});
+
+export const subscriptionSettingsSchema = z.object({
+  defaultSubscriptionStatus: z.enum(["ACTIVE", "TRIALING"]).default("ACTIVE"),
+  defaultBillingCycle: z.enum(["MONTHLY", "YEARLY", "WEEKLY", "DAILY"]).default("MONTHLY"),
+  defaultTrialPeriodDays: z.number().int().min(0).max(365).default(0),
+  allowSubscriptionPause: z.boolean().default(true),
+  allowSubscriptionResume: z.boolean().default(true),
+  allowEarlyCancellation: z.boolean().default(true),
+  allowSubscriptionRenewal: z.boolean().default(true),
+  autoRenewEligibleSubscriptions: z.boolean().default(true),
+  sendRenewalReminder: z.boolean().default(true),
+  renewalReminderDaysBefore: z.number().int().min(1).max(90).default(7),
+  sendExpiryReminder: z.boolean().default(true),
+  expiryReminderDaysBefore: z.number().int().min(1).max(90).default(3),
+});
+
+export const notificationSettingsSchema = z.object({
+  customerWelcomeEmail: z.boolean().default(true),
+  customerPasswordResetEmail: z.boolean().default(true),
+  customerQuotationCreated: z.boolean().default(true),
+  customerQuotationAccepted: z.boolean().default(true),
+  customerQuotationRejected: z.boolean().default(true),
+  customerSubscriptionActivated: z.boolean().default(true),
+  customerSubscriptionPaused: z.boolean().default(true),
+  customerSubscriptionResumed: z.boolean().default(true),
+  customerSubscriptionCancelled: z.boolean().default(true),
+  customerSubscriptionRenewed: z.boolean().default(true),
+  customerInvoiceGenerated: z.boolean().default(true),
+  customerInvoiceDueReminder: z.boolean().default(true),
+  customerPaymentReceived: z.boolean().default(true),
+  customerPaymentFailed: z.boolean().default(true),
+  customerSubscriptionExpiryReminder: z.boolean().default(true),
+  adminNewCustomerRegistration: z.boolean().default(true),
+  adminNewSubscriptionCreated: z.boolean().default(true),
+  adminPaymentReceived: z.boolean().default(true),
+  adminPaymentFailed: z.boolean().default(true),
+  adminInvoiceOverdue: z.boolean().default(true),
+  adminBillingGenerationFailed: z.boolean().default(true),
+  adminNotificationEmail: z.string().email("Valid admin notification email required"),
+  senderDisplayName: z.string().min(1, "Sender Display Name is required"),
+  senderEmailAddress: z.string().email("Valid sender email is required"),
+  emailProviderStatus: z.enum(["ACTIVE", "CONFIGURED", "NOT_CONFIGURED"]).optional().default("CONFIGURED"),
+});
+
+export const securitySettingsSchema = z.object({
+  minPasswordLength: z.number().int().min(8, "Minimum password length must be at least 8").max(32).default(9),
+  requireUppercase: z.boolean().default(true),
+  requireLowercase: z.boolean().default(true),
+  requireSpecialCharacter: z.boolean().default(true),
+  sessionExpirationDurationMinutes: z.number().int().min(15).max(10080).default(60),
+  maxFailedLoginAttempts: z.number().int().min(3).max(10).default(5),
+  accountLockoutDurationMinutes: z.number().int().min(5).max(1440).default(15),
+  requireEmailVerification: z.boolean().default(false),
+});
+
+export const regionalPreferencesSchema = z.object({
+  defaultCurrency: z.string().min(3).max(3).default("INR"),
+  timeZone: z.string().min(1).default("Asia/Kolkata"),
+  dateFormat: z.string().min(1).default("DD/MM/YYYY"),
+  timeFormat: z.enum(["12_HOUR", "24_HOUR"]).default("12_HOUR"),
+  numberFormat: z.enum(["en-IN", "en-US", "de-DE"]).default("en-IN"),
+  decimalPrecision: z.number().int().min(0).max(4).default(2),
+  taxDisplayFormat: z.enum(["EXCLUSIVE", "INCLUSIVE"]).default("EXCLUSIVE"),
+});
+
+export const testEmailSchema = z.object({
+  recipientEmail: z.string().email("Valid recipient email is required"),
+});
+
+export const uploadLogoSchema = z.object({
+  logoDataUrl: z.string().min(1, "Logo data URL is required"),
+});
+

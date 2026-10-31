@@ -50,4 +50,8 @@ router.use("/reconciliation", reconciliationRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/portal", portalRoutes);
 
+// Admin Settings Module
+import settingsRoutes from "./settings.routes";
+router.use("/settings", settingsRoutes);
+
 export default router;
