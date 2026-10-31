@@ -21,11 +21,14 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+import settingsRoutes from "./routes/settings.routes";
+
 // Apply general rate limiter
 app.use(apiLimiter);
 
-// API v1 routes
+// API v1 routes & direct /api/settings alias
 app.use("/api/v1", routes);
+app.use("/api/settings", settingsRoutes);
 
 // 404 handler for undefined routes
 app.use((req, _res, next) => {

@@ -675,3 +675,24 @@ model BillingAttempt {
   @@index([status])
   @@map("billing_attempts")
 }
+
+// ==========================================
+// SYSTEM SETTINGS
+// ==========================================
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  category    String   // GENERAL, COMPANY, BILLING, INVOICE, SUBSCRIPTION, NOTIFICATION, SECURITY, REGIONAL
+  key         String
+  value       String   @db.Text
+  valueType   String   @default("STRING") // STRING, NUMBER, BOOLEAN, JSON
+  description String?
+  updatedBy   String?
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+
+  @@unique([category, key])
+  @@index([category])
+  @@map("system_settings")
+}
+

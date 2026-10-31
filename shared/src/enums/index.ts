@@ -79,3 +79,16 @@ export enum BillingAttemptStatus {
   SUCCESS = "SUCCESS",
   FAILURE = "FAILURE",
 }
+
+export enum SettingsCategory {
+  GENERAL = "general",
+  COMPANY = "company",
+  BILLING = "billing",
+  INVOICES = "invoices",
+  SUBSCRIPTIONS = "subscriptions",
+  NOTIFICATIONS = "notifications",
+  SECURITY = "security",
+  REGIONAL = "regional",
+  SYSTEM = "system",
+}
+

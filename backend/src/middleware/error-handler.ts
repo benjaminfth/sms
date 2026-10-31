@@ -58,6 +58,22 @@ export function errorHandler(
     return;
   }
 
+  // Zod validation error
+  if (err?.name === "ZodError" || err?.constructor?.name === "ZodError") {
+    const details = err.errors?.map((e: any) => ({
+      field: Array.isArray(e.path) ? e.path.join(".") : String(e.path || "field"),
+      message: e.message,
+    })) || [];
+    AppResponse.error(
+      res,
+      ERROR_CODES.VALIDATION_ERROR,
+      "Request validation failed",
+      details,
+      HTTP_STATUS.BAD_REQUEST
+    );
+    return;
+  }
+
   // Unexpected / unhandled errors
   console.error("Unhandled Server Error:", err);
   AppResponse.error(
