@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
-import { ArrowRight, CheckCircle2, ArrowLeft, Mail } from "lucide-react";
+import { ArrowRight, CheckCircle2, ArrowLeft } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -62,20 +62,6 @@ export default function ForgotPasswordPage() {
               <p className="text-[13px] text-text-secondary mt-1 leading-relaxed">
                 {successData.message}
               </p>
-
-              {successData.resetUrl && (
-                <div className="mt-4 p-3 rounded-btn bg-surface-canvas border border-border text-left">
-                  <div className="text-[11px] font-medium text-text-muted uppercase tracking-wider mb-1">
-                    Development Bypass Link
-                  </div>
-                  <Link
-                    href={successData.resetUrl}
-                    className="text-[12px] font-mono text-primary-accent hover:underline break-all"
-                  >
-                    {successData.resetUrl}
-                  </Link>
-                </div>
-              )}
 
               <div className="mt-6 pt-4 border-t border-border">
                 <Link
